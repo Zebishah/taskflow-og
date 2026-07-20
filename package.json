@@ -1,0 +1,25 @@
+{
+  "name": "taskflow",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n API,WEB \"npm run start:dev --workspace=@taskflow/api\" \"npm run dev --workspace=@taskflow/web\"",
+    "dev:api": "npm run start:dev --workspace=@taskflow/api",
+    "dev:web": "npm run dev --workspace=@taskflow/web",
+    "build": "npm run build --workspace=@taskflow/api && npm run build --workspace=@taskflow/web",
+    "build:api": "npm run build --workspace=@taskflow/api",
+    "build:web": "npm run build --workspace=@taskflow/web",
+    "lint": "npm run lint --workspace=@taskflow/api && npm run lint --workspace=@taskflow/web",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "db:reset": "docker compose down -v"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
