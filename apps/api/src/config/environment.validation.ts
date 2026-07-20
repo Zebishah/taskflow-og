@@ -1,42 +1,39 @@
 import { plainToInstance } from 'class-transformer';
 import {
-  IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsString,
-  IsUrl,
   Max,
   Min,
   validateSync,
 } from 'class-validator';
 
-enum NodeEnvironment {
-  Development = 'development',
-  Test = 'test',
-  Production = 'production',
-}
-
 class EnvironmentVariables {
-  @IsEnum(NodeEnvironment)
-  NODE_ENV!: NodeEnvironment;
-
-  @IsInt()
-  @Min(1)
-  @Max(65535)
-  PORT!: number;
-
-  @IsString()
-  @IsNotEmpty()
-  API_PREFIX!: string;
-
-  @IsUrl({
-    require_tld: false,
-  })
-  FRONTEND_URL!: string;
-
   @IsString()
   @IsNotEmpty()
   DATABASE_URL!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  JWT_ACCESS_SECRET!: string;
+
+  @IsInt()
+  @Min(60)
+  JWT_ACCESS_TTL_SECONDS!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(90)
+  REFRESH_TOKEN_TTL_DAYS!: number;
+
+  @IsInt()
+  @Min(10)
+  @Max(15)
+  BCRYPT_SALT_ROUNDS!: number;
+
+  @IsIn(['development', 'test', 'production'])
+  NODE_ENV!: 'development' | 'test' | 'production';
 }
 
 export function validateEnvironment(

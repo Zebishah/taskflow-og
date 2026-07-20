@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import compression from 'compression';
 import helmet from 'helmet';
-
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
@@ -17,7 +17,7 @@ async function bootstrap(): Promise<void> {
 
   application.use(helmet());
   application.use(compression());
-
+  application.use(cookieParser());
   application.enableCors({
     origin: frontendUrl,
     credentials: true,

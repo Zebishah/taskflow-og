@@ -1,17 +1,55 @@
 import {
-  BrowserRouter,
+  Navigate,
   Route,
   Routes,
 } from 'react-router-dom';
 
-import { HomePage } from './pages/home-page';
+import { ProtectedRoute } from './features/auth/components/protected-route';
+import { DashboardPage } from './pages/dashboard-page';
+import { LoginPage } from './pages/login-page';
+import { RegisterPage } from './pages/register-page';
 
-export default function App(): React.JSX.Element {
+function App(): React.JSX.Element {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
+      />
+
+      <Route
+        path="/login"
+        element={<LoginPage />}
+      />
+
+      <Route
+        path="/register"
+        element={<RegisterPage />}
+      />
+
+      <Route element={<ProtectedRoute />}>
+        <Route
+          path="/dashboard"
+          element={<DashboardPage />}
+        />
+      </Route>
+
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
+      />
+    </Routes>
   );
 }
+
+export default App;

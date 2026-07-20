@@ -1,2 +1,114 @@
-/* src/index.css */
 @import "tailwindcss";
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #f6f7fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: #f6f7fb;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  color: #fff;
+  background: #7055e9;
+}
+
+.auth-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: linear-gradient(to bottom, black 20%, transparent 95%);
+}
+
+.noise-overlay::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+  opacity: .035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E");
+}
+
+.animate-fade-up {
+  animation: fade-up .65s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.animate-fade-up-delayed {
+  animation: fade-up .65s .12s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.animate-float {
+  animation: float 7s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float 9s 1.5s ease-in-out infinite reverse;
+}
+
+.shine-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.shine-button::after {
+  position: absolute;
+  top: -100%;
+  left: -35%;
+  width: 25%;
+  height: 300%;
+  content: "";
+  transform: rotate(24deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+  transition: left .7s ease;
+}
+
+.shine-button:hover::after {
+  left: 115%;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -16px, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
