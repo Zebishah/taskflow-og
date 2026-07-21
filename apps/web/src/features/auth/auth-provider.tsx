@@ -4,40 +4,49 @@ import {
   useMemo,
   useState,
   type PropsWithChildren,
-} from 'react';
+} from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { refreshSession } from './auth-api';
-import { AuthContext } from './auth-context';
-import type {
-  AuthResponse,
-  AuthUser,
-} from './auth.types';
+import { refreshSession } from "./auth-api";
+import { AuthContext } from "./auth-context";
+
+import type { AuthResponse, AuthUser } from "./auth.types";
 
 export function AuthProvider({
   children,
 }: PropsWithChildren): React.JSX.Element {
-  const [user, setUser] =
-    useState<AuthUser | null>(null);
+  const queryClient = useQueryClient();
 
-  const [accessToken, setAccessToken] =
-    useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
-  const [isInitializing, setIsInitializing] =
-    useState(true);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const completeAuthentication = useCallback(
     (response: AuthResponse): void => {
+      /*
+       * Cached API responses belong to the
+       * previous authentication identity.
+       */
+      queryClient.clear();
+
       setUser(response.user);
       setAccessToken(response.accessToken);
     },
-    [],
+    [queryClient],
   );
 
-  const clearAuthentication =
-    useCallback((): void => {
-      setUser(null);
-      setAccessToken(null);
-    }, []);
+  const clearAuthentication = useCallback((): void => {
+    /*
+     * Never allow another account to reuse
+     * workspace/member/invitation data.
+     */
+    queryClient.clear();
+
+    setUser(null);
+    setAccessToken(null);
+  }, [queryClient]);
 
   useEffect(() => {
     let isActive = true;
@@ -65,17 +74,15 @@ export function AuthProvider({
     return () => {
       isActive = false;
     };
-  }, [
-    clearAuthentication,
-    completeAuthentication,
-  ]);
+  }, [clearAuthentication, completeAuthentication]);
 
   const contextValue = useMemo(
     () => ({
       user,
       accessToken,
-      isAuthenticated:
-        user !== null && accessToken !== null,
+
+      isAuthenticated: user !== null && accessToken !== null,
+
       isInitializing,
       completeAuthentication,
       clearAuthentication,
@@ -90,8 +97,6 @@ export function AuthProvider({
   );
 
   return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   );
 }

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { getHealth, type HealthResponse } from '../shared/api/health-api';
+import { getHealth, type HealthResponse } from '../../../shared/api/health-api';
 
 export function HomePage(): React.JSX.Element {
   const healthQuery = useQuery<HealthResponse, Error>({ queryKey: ['health'], queryFn: getHealth });

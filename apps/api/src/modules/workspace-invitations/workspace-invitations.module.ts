@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { MailModule } from '../../infrastructure/mail/mail.module';
+import { AuthModule } from '../auth/auth.module';
 import { WorkspaceMembersModule } from '../workspace-members/workspace-members.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { WorkspaceInvitationsController } from './workspace-invitations.controller';
@@ -8,7 +9,7 @@ import { WorkspaceInvitationsRepository } from './workspace-invitations.reposito
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 
 @Module({
-  imports: [MailModule, WorkspacesModule, WorkspaceMembersModule],
+  imports: [AuthModule, MailModule, WorkspacesModule, WorkspaceMembersModule],
 
   controllers: [WorkspaceInvitationsController],
 

@@ -7,17 +7,14 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { neonConfig, Pool } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from 'ws';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 
 import { DATABASE } from './database.constants';
 import type { Database } from './database.types';
 import * as schema from './schema';
 
 const DATABASE_POOL = Symbol('DATABASE_POOL');
-
-neonConfig.webSocketConstructor = ws;
 
 @Injectable()
 class DatabaseLifecycleService implements OnApplicationShutdown {
@@ -28,7 +25,7 @@ class DatabaseLifecycleService implements OnApplicationShutdown {
     private readonly pool: Pool,
   ) {
     this.pool.on('error', (error: Error) => {
-      this.logger.error('An idle Neon database connection failed', error.stack);
+      this.logger.error('An idle database connection failed', error.stack);
     });
   }
 
@@ -43,6 +40,7 @@ class DatabaseLifecycleService implements OnApplicationShutdown {
     {
       provide: DATABASE_POOL,
       inject: [ConfigService],
+
       useFactory: (configService: ConfigService): Pool => {
         const connectionString =
           configService.getOrThrow<string>('DATABASE_URL');
@@ -51,21 +49,25 @@ class DatabaseLifecycleService implements OnApplicationShutdown {
           connectionString,
           max: 10,
           idleTimeoutMillis: 30_000,
-          connectionTimeoutMillis: 20_000,
+          connectionTimeoutMillis: 10_000,
+          allowExitOnIdle: false,
         });
       },
     },
+
     {
       provide: DATABASE,
       inject: [DATABASE_POOL],
-      useFactory: (pool: Pool): Database => {
-        return drizzle(pool, {
+
+      useFactory: (pool: Pool): Database =>
+        drizzle(pool, {
           schema,
-        });
-      },
+        }),
     },
+
     DatabaseLifecycleService,
   ],
+
   exports: [DATABASE],
 })
 export class DatabaseModule {}

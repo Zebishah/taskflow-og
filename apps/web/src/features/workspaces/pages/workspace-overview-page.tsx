@@ -1,10 +1,7 @@
-import {
-  Link,
-  useParams,
-} from 'react-router-dom';
+import { Link, useParams } from "react-router-dom";
 
-import { useWorkspaceQuery } from '../hooks/use-workspaces';
-import { getWorkspaceErrorMessage } from '../workspace-api';
+import { useWorkspaceQuery } from "../hooks/use-workspaces";
+import { getWorkspaceErrorMessage } from "../workspace-api";
 
 function OverviewSkeleton(): React.JSX.Element {
   return (
@@ -32,17 +29,13 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
     workspaceId: string;
   }>();
 
-  const workspaceQuery =
-    useWorkspaceQuery(workspaceId);
+  const workspaceQuery = useWorkspaceQuery(workspaceId);
 
   if (workspaceQuery.isLoading) {
     return <OverviewSkeleton />;
   }
 
-  if (
-    workspaceQuery.isError ||
-    !workspaceQuery.data
-  ) {
+  if (workspaceQuery.isError || !workspaceQuery.data) {
     return (
       <div className="rounded-[28px] border border-rose-200 bg-white p-8 text-center">
         <h1 className="text-xl font-semibold text-slate-950">
@@ -50,9 +43,7 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
         </h1>
 
         <p className="mt-3 text-sm text-slate-500">
-          {getWorkspaceErrorMessage(
-            workspaceQuery.error,
-          )}
+          {getWorkspaceErrorMessage(workspaceQuery.error)}
         </p>
 
         <Link
@@ -95,11 +86,11 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
 
             <p className="mt-6 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
               {workspace.description ||
-                'This workspace is ready for your team, projects, and upcoming tasks.'}
+                "This workspace is ready for your team, projects, and upcoming tasks."}
             </p>
           </div>
 
-          {workspace.role === 'owner' && (
+          {workspace.role === "owner" && (
             <Link
               to={`/workspaces/${workspace.id}/settings`}
               className="flex w-fit items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/15"
@@ -111,14 +102,9 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
                 stroke="currentColor"
                 strokeWidth="1.8"
               >
-                <circle
-                  cx="10"
-                  cy="10"
-                  r="3"
-                />
+                <circle cx="10" cy="10" r="3" />
                 <path d="M16.5 11.5a6.8 6.8 0 0 0 0-3l1.7-1.3-2-3.4-2.1.9a7.6 7.6 0 0 0-2.6-1.5L11.2 1H7.3L7 3.2a7.6 7.6 0 0 0-2.6 1.5l-2.1-.9-2 3.4L2 8.5a6.8 6.8 0 0 0 0 3L.3 12.8l2 3.4 2.1-.9A7.6 7.6 0 0 0 7 16.8l.3 2.2h3.9l.3-2.2a7.6 7.6 0 0 0 2.6-1.5l2.1.9 2-3.4-1.7-1.3Z" />
               </svg>
-
               Workspace settings
             </Link>
           )}
@@ -128,27 +114,22 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
       <div className="mt-7 grid gap-5 md:grid-cols-3">
         {[
           {
-            label: 'Members',
+            label: "Members",
             value: workspace.memberCount,
-            helper: 'People collaborating here',
-            gradient:
-              'from-violet-500 to-indigo-500',
+            helper: "People collaborating here",
+            gradient: "from-violet-500 to-indigo-500",
           },
           {
-            label: 'Projects',
+            label: "Projects",
             value: 0,
-            helper: 'Coming in the next milestone',
-            gradient:
-              'from-cyan-500 to-blue-500',
+            helper: "Coming in the next milestone",
+            gradient: "from-cyan-500 to-blue-500",
           },
           {
-            label: 'Your role',
-            value:
-              workspace.role[0]?.toUpperCase() +
-              workspace.role.slice(1),
-            helper: 'Workspace permission level',
-            gradient:
-              'from-emerald-500 to-teal-500',
+            label: "Your role",
+            value: workspace.role[0]?.toUpperCase() + workspace.role.slice(1),
+            helper: "Workspace permission level",
+            gradient: "from-emerald-500 to-teal-500",
           },
         ].map((stat, index) => (
           <article
@@ -170,9 +151,7 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
               {stat.value}
             </p>
 
-            <p className="mt-2 text-sm text-slate-500">
-              {stat.helper}
-            </p>
+            <p className="mt-2 text-sm text-slate-500">{stat.helper}</p>
           </article>
         ))}
       </div>
@@ -205,11 +184,7 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
                 strokeWidth="1.8"
               >
                 <path d="M12 8v5l3 2" />
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="9"
-                />
+                <circle cx="12" cy="12" r="9" />
               </svg>
             </span>
 
@@ -218,8 +193,8 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
             </p>
 
             <p className="mt-2 max-w-sm text-xs leading-5 text-slate-500">
-              Member invitations, projects, and task
-              activity will appear in this timeline.
+              Member invitations, projects, and task activity will appear in
+              this timeline.
             </p>
           </div>
         </section>
@@ -230,23 +205,51 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
           </h2>
 
           <div className="mt-6 space-y-3">
-            <button
-              type="button"
-              disabled
-              className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-left opacity-60"
+            <Link
+              to={
+                workspace.role === "member"
+                  ? `/workspaces/${workspace.id}/members`
+                  : `/workspaces/${workspace.id}/invitations`
+              }
+              className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-left transition hover:border-violet-200 hover:bg-violet-50/50"
             >
               <span>
                 <span className="block text-sm font-semibold text-slate-800">
-                  Invite members
+                  {workspace.role === "member"
+                    ? "View members"
+                    : "Invite members"}
                 </span>
+
                 <span className="mt-1 block text-xs text-slate-500">
-                  Available in Day 4
+                  {workspace.role === "member"
+                    ? "See everyone in this workspace"
+                    : "Manage workspace invitations"}
                 </span>
               </span>
 
-              <span>→</span>
-            </button>
+              <span className="text-violet-600" aria-hidden="true">
+                →
+              </span>
+            </Link>
 
+            <Link
+              to={`/workspaces/${workspace.id}/members`}
+              className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-left transition hover:border-emerald-200 hover:bg-emerald-50/50"
+            >
+              <span>
+                <span className="block text-sm font-semibold text-slate-800">
+                  Workspace members
+                </span>
+
+                <span className="mt-1 block text-xs text-slate-500">
+                  View roles and workspace access
+                </span>
+              </span>
+
+              <span className="text-emerald-600" aria-hidden="true">
+                →
+              </span>
+            </Link>
             <button
               type="button"
               disabled
@@ -264,7 +267,7 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
               <span>→</span>
             </button>
 
-            {workspace.role === 'owner' && (
+            {workspace.role === "owner" && (
               <Link
                 to={`/workspaces/${workspace.id}/settings`}
                 className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-left transition hover:border-violet-200 hover:bg-violet-50/50"
@@ -278,9 +281,7 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
                   </span>
                 </span>
 
-                <span className="text-violet-600">
-                  →
-                </span>
+                <span className="text-violet-600">→</span>
               </Link>
             )}
           </div>

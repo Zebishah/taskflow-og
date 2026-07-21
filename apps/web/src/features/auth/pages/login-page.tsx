@@ -1,58 +1,46 @@
-import {
-  useState,
-  type FormEvent,
-} from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useState, type FormEvent } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
-import { AuthLayout } from '../features/auth/components/auth-layout';
-import { login } from '../features/auth/auth-api';
-import { useAuth } from '../features/auth/use-auth';
-import type {
-  LoginInput,
-} from '../features/auth/auth.types';
-import { ApiError } from '../shared/api/api-error';
-import { FormInput } from '../shared/components/form-input';
+import { AuthLayout } from "../components/auth-layout";
+import { login } from "../auth-api";
+import { useAuth } from "../use-auth";
+import type { LoginInput } from "../auth.types";
+import { ApiError } from "../../../shared/api/api-error";
+import { FormInput } from "../../../shared/components/form-input";
+import { getSafeReturnPath } from "../../../shared/routing/return-path";
 
 const initialForm: LoginInput = {
-  email: '',
-  password: '',
+  email: "",
+  password: "",
 };
 
 export function LoginPage(): React.JSX.Element {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const {
-    isAuthenticated,
-    completeAuthentication,
-  } = useAuth();
+  const returnTo = getSafeReturnPath(searchParams.get("returnTo"));
+  const { isAuthenticated, completeAuthentication } = useAuth();
 
-  const [form, setForm] =
-    useState<LoginInput>(initialForm);
+  const [form, setForm] = useState<LoginInput>(initialForm);
 
   const loginMutation = useMutation({
     mutationFn: login,
 
     onSuccess: (response) => {
       completeAuthentication(response);
-      navigate('/dashboard', {
+
+      navigate(returnTo, {
         replace: true,
       });
     },
   });
 
   if (isAuthenticated) {
-    return (
-      <Navigate
-        to="/dashboard"
-        replace
-      />
-    );
+    return <Navigate to={returnTo} replace />;
   }
 
-  function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ): void {
+  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
 
     loginMutation.mutate({
@@ -65,7 +53,7 @@ export function LoginPage(): React.JSX.Element {
     loginMutation.error instanceof ApiError
       ? loginMutation.error.message
       : loginMutation.isError
-        ? 'Unable to sign in. Please try again.'
+        ? "Unable to sign in. Please try again."
         : null;
 
   return (
@@ -74,12 +62,11 @@ export function LoginPage(): React.JSX.Element {
       description="Sign in to continue managing your TaskFlow workspace."
       footerText="Don’t have an account?"
       footerLinkText="Create one"
-      footerLinkTo="/register"
+      footerLinkTo={`/register?${new URLSearchParams({
+        returnTo,
+      }).toString()}`}
     >
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-5"
-      >
+      <form onSubmit={handleSubmit} className="space-y-5">
         {errorMessage && (
           <div
             role="alert"
@@ -126,9 +113,7 @@ export function LoginPage(): React.JSX.Element {
           disabled={loginMutation.isPending}
           className="shine-button flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-violet-600/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-violet-600/25 focus:outline-none focus:ring-4 focus:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loginMutation.isPending
-            ? 'Signing in...'
-            : 'Sign in'}
+          {loginMutation.isPending ? "Signing in..." : "Sign in"}
         </button>
       </form>
     </AuthLayout>

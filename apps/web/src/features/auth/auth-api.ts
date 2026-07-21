@@ -1,4 +1,5 @@
 import { createApiError } from "../../shared/api/api-error";
+
 import type {
   AuthResponse,
   AuthUser,
@@ -6,13 +7,22 @@ import type {
   RegisterInput,
 } from "./auth.types";
 
-const AUTH_BASE_URL = "/api/v1/auth";
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "/api/v1").replace(
+  /\/+$/,
+  "",
+);
+
+const AUTH_BASE_URL = `${API_BASE_URL}/auth`;
+
+let pendingRefreshRequest: Promise<AuthResponse> | null = null;
 
 async function request<T>(url: string, options: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...options,
     credentials: "include",
+
     headers: {
+      Accept: "application/json",
       "Content-Type": "application/json",
       ...options.headers,
     },
@@ -44,9 +54,17 @@ export function login(input: LoginInput): Promise<AuthResponse> {
 }
 
 export function refreshSession(): Promise<AuthResponse> {
-  return request<AuthResponse>(`${AUTH_BASE_URL}/refresh`, {
+  if (pendingRefreshRequest) {
+    return pendingRefreshRequest;
+  }
+
+  pendingRefreshRequest = request<AuthResponse>(`${AUTH_BASE_URL}/refresh`, {
     method: "POST",
+  }).finally(() => {
+    pendingRefreshRequest = null;
   });
+
+  return pendingRefreshRequest;
 }
 
 export function logout(): Promise<void> {
@@ -58,6 +76,7 @@ export function logout(): Promise<void> {
 export function getCurrentUser(accessToken: string): Promise<AuthUser> {
   return request<AuthUser>(`${AUTH_BASE_URL}/me`, {
     method: "GET",
+
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
