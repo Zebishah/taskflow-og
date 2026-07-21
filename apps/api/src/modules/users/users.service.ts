@@ -1,10 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 
-import { DATABASE } from '../database/database.constants';
-import type { Database } from '../database/database.types';
-import { users } from '../database/schema';
 import type { CreateUserInput, PublicUser, UserRecord } from './users.types';
+import { DATABASE } from 'src/database/database.constants';
+import type { Database } from 'src/database/database.types';
+import { users } from 'src/database/schema';
 
 @Injectable()
 export class UsersService {

@@ -1,5 +1,5 @@
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
 
 import type * as schema from './schema';
 
-export type Database = NodePgDatabase<typeof schema>;
+export type Database = NeonDatabase<typeof schema>;

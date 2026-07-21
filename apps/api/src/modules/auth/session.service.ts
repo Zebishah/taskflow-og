@@ -9,14 +9,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 
-import { DATABASE } from '../database/database.constants';
-import type { Database } from '../database/database.types';
-import { authSessions } from '../database/schema';
 import type {
   CreatedSession,
   RefreshTokenData,
   RequestMetadata,
 } from './auth.types';
+import { DATABASE } from 'src/database/database.constants';
+import { type Database } from 'src/database/database.types';
+import { authSessions } from 'src/database/schema';
 
 @Injectable()
 export class SessionService {

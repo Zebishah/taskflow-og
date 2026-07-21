@@ -2,12 +2,14 @@ import {
   Global,
   Inject,
   Injectable,
+  Logger,
   Module,
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { neonConfig, Pool } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import ws from 'ws';
 
 import { DATABASE } from './database.constants';
 import type { Database } from './database.types';
@@ -15,12 +17,20 @@ import * as schema from './schema';
 
 const DATABASE_POOL = Symbol('DATABASE_POOL');
 
+neonConfig.webSocketConstructor = ws;
+
 @Injectable()
 class DatabaseLifecycleService implements OnApplicationShutdown {
+  private readonly logger = new Logger(DatabaseLifecycleService.name);
+
   public constructor(
     @Inject(DATABASE_POOL)
     private readonly pool: Pool,
-  ) {}
+  ) {
+    this.pool.on('error', (error: Error) => {
+      this.logger.error('An idle Neon database connection failed', error.stack);
+    });
+  }
 
   public async onApplicationShutdown(): Promise<void> {
     await this.pool.end();
