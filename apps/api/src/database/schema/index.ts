@@ -11,3 +11,6 @@ export * from './workspace-relations';
 export * from './workspace-invitation-status.enum';
 export * from './workspace-invitations.schema';
 export * from './workspace-invitation-relations';
+
+export * from './projects.schema';
+export * from './project-relations';

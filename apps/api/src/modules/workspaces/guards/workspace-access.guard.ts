@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 
 import { WorkspacesService } from '../workspaces.service';
 import type { WorkspaceAuthenticatedRequest } from '../workspaces.types';
@@ -19,19 +20,25 @@ export class WorkspaceAccessGuard implements CanActivate {
       .switchToHttp()
       .getRequest<WorkspaceAuthenticatedRequest>();
 
-    const workspaceId = request.params.workspaceId;
+    const workspaceIdParameter = request.params.workspaceId;
+
+    const workspaceId = Array.isArray(workspaceIdParameter)
+      ? workspaceIdParameter[0]
+      : workspaceIdParameter;
 
     const userId = request.user?.sub;
 
-    if (!workspaceId || !userId) {
+    /*
+     * Guards execute before controller pipes.
+     * We must therefore validate the UUID here before
+     * passing it into a PostgreSQL UUID comparison.
+     */
+    if (!workspaceId || !isUUID(workspaceId, '4') || !userId) {
       throw new NotFoundException('Workspace was not found');
     }
 
     request.workspaceContext =
-      await this.workspacesService.getMembershipContext(
-        Array.isArray(workspaceId) ? workspaceId[0] : workspaceId,
-        userId,
-      );
+      await this.workspacesService.getMembershipContext(workspaceId, userId);
 
     return true;
   }

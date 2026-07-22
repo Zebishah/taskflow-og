@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { useWorkspaceQuery } from "../hooks/use-workspaces";
 import { getWorkspaceErrorMessage } from "../workspace-api";
+import { useProjectsQuery } from "../../projects/hooks/use-projects";
 
 function OverviewSkeleton(): React.JSX.Element {
   return (
@@ -30,7 +31,7 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
   }>();
 
   const workspaceQuery = useWorkspaceQuery(workspaceId);
-
+  const projectsQuery = useProjectsQuery(workspaceId);
   if (workspaceQuery.isLoading) {
     return <OverviewSkeleton />;
   }
@@ -57,7 +58,9 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
   }
 
   const workspace = workspaceQuery.data;
-
+  const activeProjectCount =
+    projectsQuery.data?.filter((project) => project.archivedAt === null)
+      .length ?? 0;
   return (
     <section>
       <div className="relative overflow-hidden rounded-[32px] bg-[#0a0c20] p-7 text-white shadow-[0_35px_90px_-45px_rgba(15,23,42,.8)] sm:p-10">
@@ -120,9 +123,9 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
             gradient: "from-violet-500 to-indigo-500",
           },
           {
-            label: "Projects",
-            value: 0,
-            helper: "Coming in the next milestone",
+            label: "Active projects",
+            value: projectsQuery.isLoading ? "—" : activeProjectCount,
+            helper: "Projects currently in progress",
             gradient: "from-cyan-500 to-blue-500",
           },
           {
@@ -250,22 +253,28 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
                 →
               </span>
             </Link>
-            <button
-              type="button"
-              disabled
-              className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-left opacity-60"
+            <Link
+              to={`/workspaces/${workspace.id}/projects`}
+              className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-4 py-4 text-left transition hover:border-cyan-200 hover:bg-cyan-50/50"
             >
               <span>
                 <span className="block text-sm font-semibold text-slate-800">
-                  Create project
+                  {workspace.role === "member"
+                    ? "View projects"
+                    : "Manage projects"}
                 </span>
+
                 <span className="mt-1 block text-xs text-slate-500">
-                  Available after workspaces
+                  {workspace.role === "member"
+                    ? "Explore this workspace’s projects"
+                    : "Create, update, archive, and restore projects"}
                 </span>
               </span>
 
-              <span>→</span>
-            </button>
+              <span className="text-cyan-600" aria-hidden="true">
+                →
+              </span>
+            </Link>
 
             {workspace.role === "owner" && (
               <Link
