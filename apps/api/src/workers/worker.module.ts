@@ -5,7 +5,9 @@ import { validateEnvironment } from '../config/environment.validation';
 import { DatabaseModule } from '../database/database.module';
 import { MailModule } from '../infrastructure/mail/mail.module';
 import { WorkspaceInvitationsRepository } from '../modules/workspace-invitations/workspace-invitations.repository';
+
 import { InvitationEmailWorker } from './invitation-email.worker';
+import { InvitationEmailProcessor } from './invitation-email.processor';
 
 @Module({
   imports: [
@@ -19,6 +21,10 @@ import { InvitationEmailWorker } from './invitation-email.worker';
     MailModule,
   ],
 
-  providers: [WorkspaceInvitationsRepository, InvitationEmailWorker],
+  providers: [
+    WorkspaceInvitationsRepository,
+    InvitationEmailProcessor,
+    InvitationEmailWorker,
+  ],
 })
 export class WorkerModule {}
