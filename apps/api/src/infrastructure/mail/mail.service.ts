@@ -25,13 +25,18 @@ export class MailService {
   }
 
   public async sendMail(input: SendMailInput): Promise<string> {
-    const { data, error } = await this.resend.emails.send({
-      from: this.fromAddress,
-      to: input.to,
-      subject: input.subject,
-      text: input.text,
-      html: input.html,
-    });
+    const { data, error } = await this.resend.emails.send(
+      {
+        from: this.fromAddress,
+        to: input.to,
+        subject: input.subject,
+        text: input.text,
+        html: input.html,
+      },
+      {
+        idempotencyKey: input.idempotencyKey,
+      },
+    );
 
     if (error) {
       this.logger.error(
@@ -238,6 +243,7 @@ export class MailService {
           </body>
         </html>
       `,
+      idempotencyKey: input.idempotencyKey,
     });
   }
 

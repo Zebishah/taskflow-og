@@ -4,6 +4,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsString,
+  IsUrl,
   Max,
   Min,
   validateSync,
@@ -34,6 +35,16 @@ class EnvironmentVariables {
 
   @IsIn(['development', 'test', 'production'])
   NODE_ENV!: 'development' | 'test' | 'production';
+  @IsUrl({
+    require_tld: false,
+    protocols: ['redis', 'rediss'],
+  })
+  REDIS_URL!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  QUEUE_INVITATION_EMAIL_CONCURRENCY!: number;
 }
 
 export function validateEnvironment(

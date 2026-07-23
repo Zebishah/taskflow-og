@@ -10,7 +10,6 @@ import { createHash, randomBytes } from 'node:crypto';
 
 import type { AccessTokenPayload } from '../auth/auth.types';
 import type { WorkspaceMembershipContext } from '../workspaces/workspaces.types';
-import { MailService } from '../../infrastructure/mail/mail.service';
 import { WorkspaceMembersRepository } from '../workspace-members/workspace-members.repository';
 import type { CreateWorkspaceInvitationDto } from './dto/create-workspace-invitation.dto';
 import { WorkspaceInvitationsRepository } from './workspace-invitations.repository';
@@ -19,15 +18,18 @@ import type {
   InvitationPreviewResponse,
   WorkspaceInvitationResponse,
 } from './workspace-invitations.types';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
 
+import { InvitationEmailQueueService } from '../../infrastructure/queue/invitation-email-queue.service';
 @Injectable()
 export class WorkspaceInvitationsService {
+  private readonly logger = new Logger(WorkspaceInvitationsService.name);
   public constructor(
     private readonly invitationsRepository: WorkspaceInvitationsRepository,
 
     private readonly membersRepository: WorkspaceMembersRepository,
 
-    private readonly mailService: MailService,
+    private readonly invitationEmailQueue: InvitationEmailQueueService,
 
     private readonly configService: ConfigService,
   ) {}
@@ -85,14 +87,34 @@ export class WorkspaceInvitationsService {
         inviter.email,
       );
 
-      await this.sendInvitationEmail({
-        email,
-        inviterName,
-        workspaceName: context.workspace.name,
-        role: dto.role,
-        rawToken,
-        expiresAt,
-      });
+      try {
+        await this.enqueueInvitationEmail({
+          invitationId: invitation.id,
+          workspaceId: invitation.workspaceId,
+          email,
+          inviterName,
+          workspaceName: context.workspace.name,
+          role: dto.role,
+          rawToken,
+          expiresAt,
+        });
+      } catch (error: unknown) {
+        const removed =
+          await this.invitationsRepository.deletePendingByTokenHash(
+            invitation.id,
+            tokenHash,
+          );
+
+        this.logger.error(
+          `Failed to enqueue invitation email ${invitation.id}; ` +
+            `compensation removed=${removed}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+
+        throw new ServiceUnavailableException(
+          'Invitation email service is temporarily unavailable',
+        );
+      }
 
       const invitations = await this.invitationsRepository.findAllForWorkspace(
         context.workspace.id,
@@ -264,15 +286,40 @@ export class WorkspaceInvitationsService {
       context.membership.userId,
       'TaskFlow user',
     );
+    const previousTokenHash = invitation.tokenHash;
+    const previousExpiresAt = invitation.expiresAt;
+    const previousLastSentAt = invitation.lastSentAt;
+    try {
+      await this.enqueueInvitationEmail({
+        invitationId: updatedInvitation.id,
+        workspaceId: updatedInvitation.workspaceId,
+        email: updatedInvitation.email,
+        inviterName,
+        workspaceName: context.workspace.name,
+        role: updatedInvitation.role === 'admin' ? 'admin' : 'member',
+        rawToken,
+        expiresAt,
+      });
+    } catch (error: unknown) {
+      const restored =
+        await this.invitationsRepository.restoreTokenAfterQueueFailure(
+          updatedInvitation.id,
+          tokenHash,
+          previousTokenHash,
+          previousExpiresAt,
+          previousLastSentAt,
+        );
 
-    await this.sendInvitationEmail({
-      email: updatedInvitation.email,
-      inviterName,
-      workspaceName: context.workspace.name,
-      role: updatedInvitation.role === 'admin' ? 'admin' : 'member',
-      rawToken,
-      expiresAt,
-    });
+      this.logger.error(
+        `Failed to enqueue resent invitation ${updatedInvitation.id}; ` +
+          `compensation restored=${restored}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+
+      throw new ServiceUnavailableException(
+        'Invitation email service is temporarily unavailable',
+      );
+    }
   }
 
   public async cancel(
@@ -373,30 +420,30 @@ export class WorkspaceInvitationsService {
     return new Date(Date.now() + ttlHours * 60 * 60 * 1000);
   }
 
-  private async sendInvitationEmail(input: {
-    email: string;
-    inviterName: string;
-    workspaceName: string;
-    role: 'admin' | 'member';
-    rawToken: string;
-    expiresAt: Date;
-  }): Promise<void> {
-    const frontendUrl = this.configService
-      .getOrThrow<string>('FRONTEND_URL')
-      .replace(/\/+$/, '');
+  // private async sendInvitationEmail(input: {
+  //   email: string;
+  //   inviterName: string;
+  //   workspaceName: string;
+  //   role: 'admin' | 'member';
+  //   rawToken: string;
+  //   expiresAt: Date;
+  // }): Promise<void> {
+  //   const frontendUrl = this.configService
+  //     .getOrThrow<string>('FRONTEND_URL')
+  //     .replace(/\/+$/, '');
 
-    const invitationUrl =
-      `${frontendUrl}/invitations/` + encodeURIComponent(input.rawToken);
+  //   const invitationUrl =
+  //     `${frontendUrl}/invitations/` + encodeURIComponent(input.rawToken);
 
-    await this.mailService.sendWorkspaceInvitation({
-      recipientEmail: input.email,
-      inviterName: input.inviterName,
-      workspaceName: input.workspaceName,
-      role: input.role,
-      invitationUrl,
-      expiresAt: input.expiresAt,
-    });
-  }
+  //   await this.mailService.sendWorkspaceInvitation({
+  //     recipientEmail: input.email,
+  //     inviterName: input.inviterName,
+  //     workspaceName: input.workspaceName,
+  //     role: input.role,
+  //     invitationUrl,
+  //     expiresAt: input.expiresAt,
+  //   });
+  // }
 
   private async findMemberByEmail(
     workspaceId: string,
@@ -429,5 +476,26 @@ export class WorkspaceInvitationsService {
       'code' in error &&
       error.code === '23505'
     );
+  }
+  private async enqueueInvitationEmail(input: {
+    invitationId: string;
+    workspaceId: string;
+    email: string;
+    inviterName: string;
+    workspaceName: string;
+    role: 'admin' | 'member';
+    rawToken: string;
+    expiresAt: Date;
+  }): Promise<void> {
+    await this.invitationEmailQueue.enqueue({
+      invitationId: input.invitationId,
+      workspaceId: input.workspaceId,
+      recipientEmail: input.email,
+      inviterName: input.inviterName,
+      workspaceName: input.workspaceName,
+      role: input.role,
+      rawToken: input.rawToken,
+      expiresAt: input.expiresAt.toISOString(),
+    });
   }
 }

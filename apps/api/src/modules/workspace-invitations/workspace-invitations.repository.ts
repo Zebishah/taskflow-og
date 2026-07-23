@@ -314,4 +314,52 @@ export class WorkspaceInvitationsRepository {
       };
     });
   }
+  public async deletePendingByTokenHash(
+    invitationId: string,
+    tokenHash: string,
+  ): Promise<boolean> {
+    const deletedRows = await this.database
+      .delete(workspaceInvitations)
+      .where(
+        and(
+          eq(workspaceInvitations.id, invitationId),
+          eq(workspaceInvitations.tokenHash, tokenHash),
+          eq(workspaceInvitations.status, 'pending'),
+        ),
+      )
+      .returning({
+        id: workspaceInvitations.id,
+      });
+
+    return deletedRows.length > 0;
+  }
+
+  public async restoreTokenAfterQueueFailure(
+    invitationId: string,
+    failedTokenHash: string,
+    previousTokenHash: string,
+    previousExpiresAt: Date,
+    previousLastSentAt: Date,
+  ): Promise<boolean> {
+    const [restoredInvitation] = await this.database
+      .update(workspaceInvitations)
+      .set({
+        tokenHash: previousTokenHash,
+        expiresAt: previousExpiresAt,
+        lastSentAt: previousLastSentAt,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(workspaceInvitations.id, invitationId),
+          eq(workspaceInvitations.tokenHash, failedTokenHash),
+          eq(workspaceInvitations.status, 'pending'),
+        ),
+      )
+      .returning({
+        id: workspaceInvitations.id,
+      });
+
+    return restoredInvitation !== undefined;
+  }
 }

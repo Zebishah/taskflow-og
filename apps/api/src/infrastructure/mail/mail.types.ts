@@ -3,6 +3,7 @@ export interface SendMailInput {
   subject: string;
   text: string;
   html: string;
+  idempotencyKey?: string;
 }
 
 export interface WorkspaceInvitationMailInput {
@@ -12,4 +13,5 @@ export interface WorkspaceInvitationMailInput {
   role: 'admin' | 'member';
   invitationUrl: string;
   expiresAt: Date;
+  idempotencyKey: string;
 }
