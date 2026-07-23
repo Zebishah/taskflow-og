@@ -26,3 +26,7 @@ npm-debug.log*
 
 # Vite
 apps/web/.vite/
+# Cypress generated artifacts
+apps/web/cypress/screenshots/
+apps/web/cypress/videos/
+apps/web/cypress/downloads/

@@ -5,11 +5,11 @@ export interface Project {
   name: string;
   key: string;
   description: string | null;
+  nextTaskNumber: number;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
-
 export interface CreateProjectInput {
   name: string;
   key: string;

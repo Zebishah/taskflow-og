@@ -17,9 +17,25 @@
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres",
-    "db:reset": "docker compose down -v"
+    "db:reset": "docker compose down -v",
+    "e2e:db:reset": "docker exec taskflow-postgres dropdb --if-exists --force -U taskflow taskflow_e2e && docker exec taskflow-postgres createdb -U taskflow taskflow_e2e",
+
+    "e2e:db:migrate": "cross-env DATABASE_URL=postgresql://taskflow:taskflow@127.0.0.1:5432/taskflow_e2e npm run db:migrate --workspace=@taskflow/api",
+
+  "e2e:api": "cross-env NODE_ENV=development DATABASE_URL=postgresql://taskflow:taskflow@127.0.0.1:5432/taskflow_e2e FRONTEND_URL=http://127.0.0.1:5173 npm run start:dev --workspace=@taskflow/api",
+
+    "e2e:web": "npm run dev --workspace=@taskflow/web -- --host 127.0.0.1 --port 5173",
+
+    "e2e:cypress": "npm run test:e2e --workspace=@taskflow/web",
+
+    "test:e2e": "npm run e2e:db:reset && npm run e2e:db:migrate && start-server-and-test \"npm run e2e:api\" http://127.0.0.1:3000/api/v1/health \"npm run e2e:web\" http://127.0.0.1:5173 \"npm run e2e:cypress\""
+  
+
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "cypress": "^15.19.0",
+    "start-server-and-test": "^3.0.11"
   }
 }

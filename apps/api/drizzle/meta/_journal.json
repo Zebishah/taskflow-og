@@ -36,6 +36,20 @@
       "when": 1784742024992,
       "tag": "0004_curvy_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784793316492,
+      "tag": "0005_boring_scream",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784793846748,
+      "tag": "0006_add-tasks",
+      "breakpoints": true
     }
   ]
 }

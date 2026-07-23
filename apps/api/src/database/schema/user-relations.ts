@@ -5,6 +5,7 @@ import { projects } from './projects.schema';
 import { users } from './users.schema';
 import { workspaceInvitations } from './workspace-invitations.schema';
 import { workspaceMembers } from './workspace-members.schema';
+import { tasks } from './tasks.schema';
 
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(authSessions),
@@ -12,6 +13,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   workspaceMemberships: many(workspaceMembers),
 
   createdProjects: many(projects),
+
+  createdTasks: many(tasks),
 
   sentWorkspaceInvitations: many(workspaceInvitations, {
     relationName: 'workspaceInvitationInviter',
@@ -21,7 +24,6 @@ export const usersRelations = relations(users, ({ many }) => ({
     relationName: 'workspaceInvitationAcceptor',
   }),
 }));
-
 export const authSessionsRelations = relations(authSessions, ({ one }) => ({
   user: one(users, {
     fields: [authSessions.userId],

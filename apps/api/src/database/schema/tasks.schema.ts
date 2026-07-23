@@ -1,0 +1,131 @@
+import { sql } from 'drizzle-orm';
+import {
+  check,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
+
+import { projects } from './projects.schema';
+import { taskPriorityEnum } from './task-priority.enum';
+import { taskStatusEnum } from './task-status.enum';
+import { users } from './users.schema';
+import { workspaceMembers } from './workspace-members.schema';
+import { workspaces } from './workspaces.schema';
+
+export const tasks = pgTable(
+  'tasks',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, {
+        onDelete: 'cascade',
+      }),
+
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, {
+        onDelete: 'cascade',
+      }),
+
+    createdByUserId: uuid('created_by_user_id')
+      .notNull()
+      .references(() => users.id, {
+        onDelete: 'restrict',
+      }),
+
+    assigneeMemberId: uuid('assignee_member_id').references(
+      () => workspaceMembers.id,
+      {
+        onDelete: 'set null',
+      },
+    ),
+
+    taskNumber: integer('task_number').notNull(),
+
+    title: varchar('title', {
+      length: 200,
+    }).notNull(),
+
+    description: text('description'),
+
+    status: taskStatusEnum('status').default('todo').notNull(),
+
+    priority: taskPriorityEnum('priority').default('medium').notNull(),
+
+    /*
+     * This gives tasks a stable ordering within
+     * their current status column.
+     */
+    position: integer('position').default(1000).notNull(),
+
+    dueAt: timestamp('due_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
+
+    completedAt: timestamp('completed_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
+
+    createdAt: timestamp('created_at', {
+      withTimezone: true,
+      mode: 'date',
+    })
+      .defaultNow()
+      .notNull(),
+
+    updatedAt: timestamp('updated_at', {
+      withTimezone: true,
+      mode: 'date',
+    })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('tasks_project_task_number_unique_index').on(
+      table.projectId,
+      table.taskNumber,
+    ),
+
+    check('tasks_task_number_positive_check', sql`${table.taskNumber} > 0`),
+
+    check('tasks_position_non_negative_check', sql`${table.position} >= 0`),
+
+    index('tasks_workspace_id_index').on(table.workspaceId),
+
+    index('tasks_project_id_index').on(table.projectId),
+
+    index('tasks_project_status_position_index').on(
+      table.projectId,
+      table.status,
+      table.position,
+    ),
+
+    index('tasks_workspace_assignee_index').on(
+      table.workspaceId,
+      table.assigneeMemberId,
+    ),
+
+    index('tasks_workspace_priority_index').on(
+      table.workspaceId,
+      table.priority,
+    ),
+
+    index('tasks_due_at_index').on(table.dueAt),
+
+    index('tasks_created_by_user_id_index').on(table.createdByUserId),
+  ],
+);
+
+export type Task = typeof tasks.$inferSelect;
+
+export type NewTask = typeof tasks.$inferInsert;

@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { WorkspaceMembersModule } from './modules/workspace-members/workspace-members.module';
 import { WorkspaceInvitationsModule } from './modules/workspace-invitations/workspace-invitations.module';
 import { ProjectsModule } from './modules/projects/project.module';
+import { TasksModule } from './modules/tasks/tasks.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ProjectsModule } from './modules/projects/project.module';
     WorkspaceMembersModule,
     WorkspaceInvitationsModule,
     ProjectsModule,
+    TasksModule,
   ],
 })
 export class AppModule {}

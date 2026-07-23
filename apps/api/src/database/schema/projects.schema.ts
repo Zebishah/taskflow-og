@@ -10,6 +10,7 @@ import {
 
 import { users } from './users.schema';
 import { workspaces } from './workspaces.schema';
+import { integer } from 'drizzle-orm/pg-core';
 
 export const projects = pgTable(
   'projects',
@@ -37,7 +38,7 @@ export const projects = pgTable(
     }).notNull(),
 
     description: text('description'),
-
+    nextTaskNumber: integer('next_task_number').default(1).notNull(),
     archivedAt: timestamp('archived_at', {
       withTimezone: true,
       mode: 'date',
