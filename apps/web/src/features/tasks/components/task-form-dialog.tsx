@@ -1,4 +1,7 @@
 import { useRef, useState, type FormEvent } from "react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import "./task-date-time-picker.css";
 
 import type { WorkspaceMember } from "../../workspace-collaboration/workspace-collaboration.types";
 import { getWorkspaceErrorMessage } from "../../workspaces/workspace-api";
@@ -31,16 +34,49 @@ interface FormErrors {
   dueAt?: string;
 }
 
-function toDateInputValue(value: string | null | undefined): string {
+/*
+ * Converts the UTC ISO date returned by the API into the
+ * local format required by <input type="datetime-local">.
+ *
+ * Example:
+ * API:   2026-07-31T12:00:00.000Z
+ * Input: 2026-07-31T17:00
+ *        when the browser is using UTC+5.
+ */
+interface LocalDueDateParts {
+  date: string;
+  time: string;
+}
+
+function toLocalDueDateParts(
+  value: string | null | undefined,
+): LocalDueDateParts {
   if (!value) {
-    return "";
+    return {
+      date: "",
+      time: "",
+    };
   }
 
-  const date = new Date(value);
+  const dueDate = new Date(value);
 
-  const timezoneOffset = date.getTimezoneOffset() * 60_000;
+  if (Number.isNaN(dueDate.getTime())) {
+    return {
+      date: "",
+      time: "",
+    };
+  }
 
-  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
+  const timezoneOffset = dueDate.getTimezoneOffset() * 60_000;
+
+  const localValue = new Date(dueDate.getTime() - timezoneOffset)
+    .toISOString()
+    .slice(0, 16);
+
+  return {
+    date: localValue.slice(0, 10),
+    time: localValue.slice(11, 16),
+  };
 }
 
 export function TaskFormDialog({
@@ -67,14 +103,22 @@ export function TaskFormDialog({
     task?.assigneeMemberId ?? "",
   );
 
-  const [dueAt, setDueAt] = useState(toDateInputValue(task?.dueAt));
+  const initialDueAt = toLocalDueDateParts(task?.dueAt);
+
+  const [dueDate, setDueDate] = useState(initialDueAt.date);
+
+  const [dueTime, setDueTime] = useState(initialDueAt.time);
 
   const [errors, setErrors] = useState<FormErrors>({});
 
   const isEditing = task !== undefined;
 
+  const selectedDueAt =
+    dueDate && dueTime ? new Date(`${dueDate}T${dueTime}`) : null;
+
   function validate(): boolean {
     const nextErrors: FormErrors = {};
+
     const normalizedTitle = title.trim();
 
     if (normalizedTitle.length < 2) {
@@ -89,8 +133,16 @@ export function TaskFormDialog({
       nextErrors.description = "Description cannot exceed 5,000 characters.";
     }
 
-    if (dueAt && Number.isNaN(new Date(dueAt).getTime())) {
-      nextErrors.dueAt = "Enter a valid due date.";
+    if ((dueDate && !dueTime) || (!dueDate && dueTime)) {
+      nextErrors.dueAt = "Select both a due date and a due time.";
+    }
+
+    if (dueDate && dueTime) {
+      const selectedDueAt = new Date(`${dueDate}T${dueTime}`);
+
+      if (Number.isNaN(selectedDueAt.getTime())) {
+        nextErrors.dueAt = "Enter a valid due date and time.";
+      }
     }
 
     setErrors(nextErrors);
@@ -113,11 +165,21 @@ export function TaskFormDialog({
         description: description.trim(),
         status,
         priority,
+
         assigneeMemberId: assigneeMemberId || null,
-        dueAt: dueAt ? new Date(`${dueAt}T23:59:59.999`).toISOString() : null,
+
+        /*
+         * datetime-local gives local browser time.
+         * Date converts it to UTC and toISOString()
+         * creates the format expected by the API.
+         */
+        dueAt:
+          dueDate && dueTime
+            ? new Date(`${dueDate}T${dueTime}`).toISOString()
+            : null,
       });
     } catch {
-      // Mutation errors are displayed below.
+      // Mutation error is rendered below.
     }
   }
 
@@ -140,6 +202,7 @@ export function TaskFormDialog({
       >
         <div className="relative overflow-hidden bg-[#0a0c20] px-6 py-6 text-white sm:px-8">
           <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-violet-500/30 blur-3xl" />
+
           <div className="pointer-events-none absolute -bottom-20 left-12 h-40 w-40 rounded-full bg-emerald-400/20 blur-3xl" />
 
           <div className="relative flex items-start justify-between gap-5">
@@ -210,7 +273,7 @@ export function TaskFormDialog({
                 }
               }}
               placeholder="For example: Build authentication page"
-              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
             />
 
             {errors.title && (
@@ -269,7 +332,7 @@ export function TaskFormDialog({
                 onChange={(event) =>
                   setStatus(event.target.value as TaskStatus)
                 }
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {taskStatuses.map((taskStatus) => (
                   <option key={taskStatus} value={taskStatus}>
@@ -294,7 +357,7 @@ export function TaskFormDialog({
                 onChange={(event) =>
                   setPriority(event.target.value as TaskPriority)
                 }
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {taskPriorities.map((taskPriority) => (
                   <option key={taskPriority} value={taskPriority}>
@@ -317,7 +380,7 @@ export function TaskFormDialog({
                 value={assigneeMemberId}
                 disabled={isPending}
                 onChange={(event) => setAssigneeMemberId(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <option value="">Unassigned</option>
 
@@ -328,27 +391,107 @@ export function TaskFormDialog({
                 ))}
               </select>
             </div>
+            <div className="sm:col-span-2">
+              <div className="flex items-center justify-between gap-3">
+                <label
+                  htmlFor="task-due-at"
+                  className="text-sm font-semibold text-slate-800"
+                >
+                  Due date and time
+                </label>
 
-            <div>
-              <label
-                htmlFor="task-due-at"
-                className="text-sm font-semibold text-slate-800"
-              >
-                Due date{" "}
-                <span className="font-normal text-slate-400">(optional)</span>
-              </label>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                  Optional
+                </span>
+              </div>
 
-              <input
-                id="task-due-at"
-                type="date"
-                value={dueAt}
-                disabled={isPending}
-                onChange={(event) => setDueAt(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
-              />
+              <div className="relative mt-2">
+                <DatePicker
+                  id="task-due-at"
+                  selected={selectedDueAt}
+                  disabled={isPending}
+                  showTimeSelect
+                  withPortal
+                  shouldCloseOnSelect={false}
+                  showPopperArrow={false}
+                  timeIntervals={15}
+                  timeCaption="Time"
+                  dateFormat="MMM d, yyyy · h:mm aa"
+                  placeholderText="Choose a date and time"
+                  calendarClassName="task-date-time-calendar"
+                  wrapperClassName="task-date-time-wrapper"
+                  className={[
+                    "task-date-time-input",
+                    errors.dueAt ? "task-date-time-input-invalid" : "",
+                  ].join(" ")}
+                  onChange={(value: Date | null) => {
+                    if (value) {
+                      const nextDueAt = toLocalDueDateParts(
+                        value.toISOString(),
+                      );
+
+                      setDueDate(nextDueAt.date);
+                      setDueTime(nextDueAt.time);
+                    } else {
+                      setDueDate("");
+                      setDueTime("");
+                    }
+
+                    if (errors.dueAt) {
+                      setErrors((current) => ({
+                        ...current,
+                        dueAt: undefined,
+                      }));
+                    }
+                  }}
+                />
+
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-violet-500"
+                >
+                  <path d="M7 3v3m10-3v3M4 9h16" />
+
+                  <rect x="4" y="5" width="16" height="16" rx="3" />
+
+                  <path d="M12 13v4l2 1" />
+                </svg>
+              </div>
+
+              <div className="mt-2 flex items-start justify-between gap-4">
+                <p className="text-[11px] leading-4 text-slate-400">
+                  Uses your local timezone. The assignee will receive an email
+                  reminder before this time.
+                </p>
+
+                {(dueDate || dueTime) && (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => {
+                      setDueDate("");
+                      setDueTime("");
+
+                      setErrors((current) => ({
+                        ...current,
+                        dueAt: undefined,
+                      }));
+                    }}
+                    className="shrink-0 text-xs font-semibold text-slate-500 transition hover:text-rose-600 disabled:opacity-50"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
 
               {errors.dueAt && (
-                <p className="mt-2 text-xs text-rose-600">{errors.dueAt}</p>
+                <p className="mt-2 text-xs font-medium text-rose-600">
+                  {errors.dueAt}
+                </p>
               )}
             </div>
           </div>
@@ -367,7 +510,7 @@ export function TaskFormDialog({
               type="button"
               disabled={isPending}
               onClick={onClose}
-              className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancel
             </button>

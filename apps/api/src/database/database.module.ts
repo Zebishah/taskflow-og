@@ -47,9 +47,12 @@ class DatabaseLifecycleService implements OnApplicationShutdown {
 
         return new Pool({
           connectionString,
-          max: 10,
-          idleTimeoutMillis: 30_000,
-          connectionTimeoutMillis: 10_000,
+          max: 3,
+          min: 0,
+          idleTimeoutMillis: 10_000,
+          connectionTimeoutMillis: 20_000,
+          keepAlive: true,
+          keepAliveInitialDelayMillis: 10_000,
           allowExitOnIdle: false,
         });
       },

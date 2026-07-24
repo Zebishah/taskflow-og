@@ -8,7 +8,9 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { bullBoardLocalOnly } from './infrastructure/bull-board/bull-board-local.middleware';
 import { BullBoardService } from './infrastructure/bull-board/bull-board.service';
-
+// main.ts — before anything else runs
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
 function normalizeApiPrefix(prefix: string): string {
   return prefix.replace(/^\/+|\/+$/g, '');
 }

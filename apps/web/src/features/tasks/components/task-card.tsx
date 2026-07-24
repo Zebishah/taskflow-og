@@ -1,9 +1,10 @@
+import { useRef, type ReactNode } from "react";
+
 import type { WorkspaceMember } from "../../workspace-collaboration/workspace-collaboration.types";
 import type { Task, TaskStatus } from "../task.types";
 import { taskStatuses, taskStatusLabels } from "../task.types";
 import { TaskPriorityBadge } from "./task-badges";
 import { RichTextContent } from "./rich-text-editor";
-import type { ReactNode } from "react";
 
 interface TaskCardProps {
   projectKey: string;
@@ -12,8 +13,8 @@ interface TaskCardProps {
   isArchived: boolean;
   canDelete: boolean;
   isUpdating: boolean;
-  onEdit: (task: Task) => void;
   dragHandle?: ReactNode;
+  onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
 }
@@ -23,15 +24,41 @@ function formatDueDate(value: string): string {
     month: "short",
     day: "numeric",
     year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   }).format(new Date(value));
 }
 
-function isOverdue(task: Task): boolean {
+function getOverdueText(task: Task): string | null {
   if (!task.dueAt || task.status === "done") {
-    return false;
+    return null;
   }
 
-  return new Date(task.dueAt).getTime() < Date.now();
+  const dueTime = new Date(task.dueAt).getTime();
+
+  const difference = Date.now() - dueTime;
+
+  if (difference <= 0) {
+    return null;
+  }
+
+  const overdueMinutes = Math.ceil(difference / 60_000);
+
+  if (overdueMinutes < 60) {
+    return `Overdue by ${overdueMinutes}m`;
+  }
+
+  const overdueHours = Math.ceil(difference / (60 * 60_000));
+
+  if (overdueHours < 24) {
+    return `Overdue by ${overdueHours}h`;
+  }
+
+  const overdueDays = Math.ceil(difference / (24 * 60 * 60_000));
+
+  return overdueDays === 1
+    ? "Overdue by 1 day"
+    : `Overdue by ${overdueDays} days`;
 }
 
 function getInitials(member: WorkspaceMember): string {
@@ -39,13 +66,6 @@ function getInitials(member: WorkspaceMember): string {
     `${member.user.firstName[0] ?? ""}` + `${member.user.lastName[0] ?? ""}`
   ).toUpperCase();
 }
-
-const priorityAccentClasses: Record<Task["priority"], string> = {
-  low: "from-slate-300 via-slate-200 to-transparent",
-  medium: "from-blue-500 via-cyan-300 to-transparent",
-  high: "from-orange-500 via-amber-300 to-transparent",
-  urgent: "from-rose-500 via-pink-400 to-transparent",
-};
 
 export function TaskCard({
   projectKey,
@@ -59,194 +79,224 @@ export function TaskCard({
   onDelete,
   onStatusChange,
 }: TaskCardProps): React.JSX.Element {
-  const overdue = isOverdue(task);
+  const menuRef = useRef<HTMLDetailsElement>(null);
+
+  const overdueText = getOverdueText(task);
+
+  function closeMenu(): void {
+    menuRef.current?.removeAttribute("open");
+  }
 
   return (
-    <article className="task-card group relative isolate overflow-hidden rounded-[22px] border border-white/80 bg-white/95 p-4 shadow-[0_2px_8px_rgba(15,23,42,0.06),0_12px_30px_rgba(99,102,241,0.05)] ring-1 ring-slate-200/70 transition-[box-shadow,border-color] duration-300 ease-out hover:border-violet-200/80 hover:shadow-[0_8px_24px_rgba(15,23,42,0.08),0_18px_42px_rgba(124,58,237,0.1)]">
-      <div
-        aria-hidden="true"
-        className={[
-          "absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r",
-          priorityAccentClasses[task.priority],
-        ].join(" ")}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-16 -top-20 -z-10 h-36 w-36 rounded-full bg-violet-100/0 blur-3xl transition-colors duration-500 group-hover:bg-violet-100/70"
-      />
+    <article
+      className={[
+        "group relative rounded-[22px] border bg-white p-4",
+        "shadow-[0_8px_24px_-18px_rgba(15,23,42,.45)]",
+        "transition duration-200",
+        "hover:-translate-y-0.5 hover:border-violet-200",
+        "hover:shadow-[0_18px_38px_-20px_rgba(124,58,237,.35)]",
+        overdueText ? "border-rose-200/90" : "border-slate-200/90",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="rounded-lg bg-violet-50 px-2 py-1 font-mono text-[10px] font-bold tracking-wider text-violet-700">
+            {projectKey}-{task.taskNumber}
+          </span>
 
-      <div className="flex items-center justify-between gap-3">
-        <span className="rounded-md bg-violet-50 px-2 py-1 font-mono text-[10px] font-bold tracking-[0.1em] text-violet-700 ring-1 ring-violet-100">
-          {projectKey}-{task.taskNumber}
-        </span>
-
-        <div className="flex items-center gap-2">
           <TaskPriorityBadge priority={task.priority} />
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
           {dragHandle}
+
+          <details ref={menuRef} className="group/menu relative">
+            <summary
+              aria-label={`Actions for ${task.title}`}
+              className={[
+                "flex h-8 w-8 cursor-pointer list-none items-center justify-center",
+                "rounded-xl border border-transparent text-slate-400",
+                "transition hover:border-slate-200 hover:bg-slate-50",
+                "hover:text-slate-700",
+                "[&::-webkit-details-marker]:hidden",
+              ].join(" ")}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-5 w-5"
+              >
+                <circle cx="4" cy="10" r="1.5" />
+                <circle cx="10" cy="10" r="1.5" />
+                <circle cx="16" cy="10" r="1.5" />
+              </svg>
+            </summary>
+
+            <div className="absolute right-0 top-10 z-50 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl shadow-slate-300/60">
+              <button
+                type="button"
+                disabled={isArchived}
+                onClick={() => {
+                  closeMenu();
+                  onEdit(task);
+                }}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-4 w-4"
+                >
+                  <path d="m13.5 3.5 3 3L7 16H4v-3L13.5 3.5Z" />
+                </svg>
+                Edit task
+              </button>
+
+              {!isArchived && (
+                <>
+                  <div className="my-1 border-t border-slate-100" />
+
+                  <p className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                    Move to
+                  </p>
+
+                  {taskStatuses
+                    .filter((status) => status !== task.status)
+                    .map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        disabled={isUpdating}
+                        onClick={() => {
+                          closeMenu();
+
+                          onStatusChange(task, status);
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-950 disabled:opacity-50"
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+
+                        {taskStatusLabels[status]}
+                      </button>
+                    ))}
+                </>
+              )}
+
+              {canDelete && (
+                <>
+                  <div className="my-1 border-t border-slate-100" />
+
+                  <button
+                    type="button"
+                    disabled={isArchived || isUpdating}
+                    onClick={() => {
+                      closeMenu();
+                      onDelete(task);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      className="h-4 w-4"
+                    >
+                      <path d="M4 6h12M8 3h4l1 3H7l1-3Zm-2 3 1 11h6l1-11M9 9v5m2-5v5" />
+                    </svg>
+                    Delete task
+                  </button>
+                </>
+              )}
+            </div>
+          </details>
         </div>
       </div>
 
       <button
         type="button"
+        disabled={isArchived}
         onClick={() => onEdit(task)}
-        className="mt-3 block w-full rounded-lg text-left outline-none focus-visible:ring-4 focus-visible:ring-violet-100"
+        className="mt-4 block w-full text-left disabled:cursor-default"
       >
-        <h3 className="text-[15px] font-bold leading-6 tracking-[-0.01em] text-slate-900 transition-colors duration-200 group-hover:text-violet-700">
+        <h3 className="line-clamp-2 text-[15px] font-semibold leading-6 text-slate-950 transition group-hover:text-violet-700">
           {task.title}
         </h3>
 
         {task.description && (
-          <div className="mt-2 text-xs leading-5 text-slate-500">
+          <div className="mt-2 max-h-[3.8rem] overflow-hidden text-xs leading-5 text-slate-500">
             <RichTextContent value={task.description} compact />
           </div>
         )}
       </button>
 
-      <div className="mt-4 flex min-h-8 items-center gap-2">
+      <div className="mt-4 border-t border-slate-100 pt-3">
         {assignee ? (
           <div
             title={`${assignee.user.firstName} ${assignee.user.lastName}`}
-            className="flex min-w-0 items-center gap-2"
+            className="flex min-w-0 items-center gap-2.5"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-violet-500 to-indigo-600 text-[10px] font-bold text-white shadow-sm ring-1 ring-violet-200">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-[10px] font-bold text-white shadow-md shadow-violet-200">
               {getInitials(assignee)}
             </span>
 
-            <span className="max-w-20 truncate text-xs font-semibold text-slate-600">
-              {assignee.user.firstName}
-            </span>
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                Assignee
+              </p>
+
+              <p className="truncate text-xs font-semibold text-slate-700">
+                {assignee.user.firstName} {assignee.user.lastName}
+              </p>
+            </div>
           </div>
         ) : (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-slate-300 bg-slate-50">
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-dashed border-slate-300">
               +
             </span>
             Unassigned
-          </span>
+          </div>
         )}
 
         {task.dueAt && (
-          <span
+          <div
             className={[
-              "ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold",
-              overdue
-                ? "bg-rose-50 text-rose-700 ring-1 ring-rose-100"
-                : "bg-slate-100/80 text-slate-500",
+              "mt-3 flex items-center gap-2 rounded-xl border px-3 py-2.5",
+              overdueText
+                ? "border-rose-200 bg-rose-50 text-rose-700"
+                : "border-slate-200 bg-slate-50 text-slate-600",
             ].join(" ")}
           >
             <svg
               aria-hidden="true"
               viewBox="0 0 20 20"
               fill="none"
-              className="h-3.5 w-3.5"
-            >
-              <path
-                d="M5.5 2.5v2m9-2v2M3.5 7h13m-11 9.5h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            {overdue ? "Overdue · " : ""}
-            {formatDueDate(task.dueAt)}
-          </span>
-        )}
-      </div>
-
-      <div className="mt-4 border-t border-slate-100 pt-3">
-        <div className="relative">
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 z-10 h-2 w-2 -translate-y-1/2 rounded-full bg-violet-500 shadow-[0_0_0_4px_rgba(139,92,246,0.1)]"
-          />
-          <select
-            aria-label={`Status for ${task.title}`}
-            value={task.status}
-            disabled={isArchived || isUpdating}
-            onChange={(event) => {
-              const status = event.target.value as TaskStatus;
-
-              if (status !== task.status) {
-                onStatusChange(task, status);
-              }
-            }}
-            className="w-full appearance-none rounded-xl border border-slate-200/80 bg-slate-50/80 py-2.5 pl-8 pr-9 text-xs font-bold text-slate-700 outline-none transition duration-200 hover:border-violet-200 hover:bg-violet-50/70 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {taskStatuses.map((status) => (
-              <option key={status} value={status}>
-                {taskStatusLabels[status]}
-              </option>
-            ))}
-          </select>
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 20 20"
-            fill="none"
-            className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
-          >
-            <path
-              d="m6 8 4 4 4-4"
               stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            aria-label="Edit"
-            title="Edit task"
-            disabled={isArchived}
-            onClick={() => onEdit(task)}
-            className="flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-[11px] font-bold text-slate-500 transition duration-200 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 20 20"
-              fill="none"
-              className="h-4 w-4"
+              strokeWidth="1.8"
+              className="h-4 w-4 shrink-0"
             >
-              <path
-                d="m12.8 4.2 3 3M5.1 15.5l2.5-.5 7.7-7.7a1.4 1.4 0 0 0 0-2l-.6-.6a1.4 1.4 0 0 0-2 0L5 12.4l-.5 2.5c-.1.4.2.7.6.6Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+              <path d="M6 2v3m8-3v3M3 8h14" />
+
+              <rect x="3" y="4" width="14" height="13" rx="3" />
             </svg>
-            <span>Edit</span>
-          </button>
 
-          {canDelete && (
-            <button
-              type="button"
-              aria-label="Delete"
-              title="Delete task"
-              disabled={isArchived || isUpdating}
-              onClick={() => onDelete(task)}
-              className="flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-[11px] font-bold text-slate-400 transition duration-200 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                className="h-4 w-4"
-              >
-                <path
-                  d="M3.5 5.5h13m-8.5 3v5m4-5v5M5.5 5.5l.6 10a1 1 0 0 0 1 .9h5.8a1 1 0 0 0 1-.9l.6-10M8 5.5v-2h4v2"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span>Delete</span>
-            </button>
-          )}
-        </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-wider opacity-70">
+                {overdueText ? overdueText : "Due date"}
+              </p>
+
+              <p className="truncate text-[11px] font-semibold">
+                {formatDueDate(task.dueAt)}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </article>
   );

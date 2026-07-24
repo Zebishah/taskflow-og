@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkspaceMember } from "../../workspace-collaboration/workspace-collaboration.types";
 import type { Task, TaskFormValues } from "../task.types";
@@ -50,6 +50,41 @@ function createSubmitMock() {
 }
 
 describe("TaskFormDialog", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens the combined date and time picker", async () => {
+    const user = userEvent.setup();
+
+    class ResizeObserverMock {
+      public disconnect = vi.fn();
+
+      public observe = vi.fn();
+
+      public unobserve = vi.fn();
+    }
+
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+
+    render(
+      <TaskFormDialog
+        members={[]}
+        isPending={false}
+        error={null}
+        onSubmit={createSubmitMock()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Due date and time"));
+
+    expect(document.querySelector(".react-datepicker")).toBeInTheDocument();
+    expect(
+      document.querySelector(".react-datepicker__time-container"),
+    ).toBeInTheDocument();
+  });
+
   it("shows validation when the title is missing", async () => {
     const user = userEvent.setup();
     const onSubmit = createSubmitMock();
@@ -108,7 +143,7 @@ describe("TaskFormDialog", () => {
 
     fireEvent.change(screen.getByLabelText(/Due date/i), {
       target: {
-        value: "2026-08-15",
+        value: "Aug 15, 2026 · 7:00 PM",
       },
     });
 
@@ -118,7 +153,7 @@ describe("TaskFormDialog", () => {
       }),
     );
 
-    const expectedDueAt = new Date("2026-08-15T23:59:59.999").toISOString();
+    const expectedDueAt = new Date("2026-08-15T19:00").toISOString();
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({
@@ -164,7 +199,9 @@ describe("TaskFormDialog", () => {
 
     expect(screen.getByLabelText("Assignee")).toHaveValue(member.id);
 
-    expect(screen.getByLabelText(/Due date/i)).toHaveValue("2026-08-15");
+    expect(screen.getByLabelText(/Due date/i)).toHaveValue(
+      "Aug 15, 2026 · 11:59 PM",
+    );
   });
 
   it("renders API errors as text", () => {

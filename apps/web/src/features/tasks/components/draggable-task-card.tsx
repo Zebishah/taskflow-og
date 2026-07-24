@@ -43,7 +43,9 @@ export function DraggableTaskCard({
 
   const style: React.CSSProperties = {
     transform: transform ? CSS.Translate.toString(transform) : undefined,
-    zIndex: isDragging ? 20 : undefined,
+
+    opacity: isDragging ? 0.35 : 1,
+    zIndex: isDragging ? 30 : undefined,
   };
 
   return (
@@ -51,12 +53,9 @@ export function DraggableTaskCard({
       ref={setNodeRef}
       style={style}
       data-cy={`task-card-${task.id}`}
-      className={[
-        "relative transition-[filter,opacity] duration-200",
-        isDragging
-          ? "scale-[1.025] rotate-[0.75deg] opacity-70 drop-shadow-2xl"
-          : "opacity-100",
-      ].join(" ")}
+      className={["relative transition", isDragging ? "scale-[1.02]" : ""].join(
+        " ",
+      )}
     >
       <TaskCard
         projectKey={projectKey}
@@ -75,23 +74,28 @@ export function DraggableTaskCard({
             disabled={disabled}
             {...attributes}
             {...listeners}
-            className="
-              flex h-7 w-7 cursor-grab
-              touch-none items-center
-              justify-center rounded-lg
-              border border-transparent
-              bg-slate-50 text-sm
-              text-slate-400 transition duration-200
-              hover:border-violet-300
-              hover:bg-violet-50
-              hover:text-violet-600
-              hover:shadow-sm
-              active:cursor-grabbing
-              disabled:cursor-not-allowed
-              disabled:opacity-40
-            "
+            className={[
+              "flex h-8 w-8 touch-none items-center justify-center",
+              "rounded-xl border border-transparent text-slate-400",
+              "transition hover:border-violet-200 hover:bg-violet-50",
+              "hover:text-violet-600 active:cursor-grabbing",
+              "disabled:cursor-not-allowed disabled:opacity-40",
+              disabled ? "cursor-not-allowed" : "cursor-grab",
+            ].join(" ")}
           >
-            ⠿
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-4 w-4"
+            >
+              <circle cx="7" cy="5" r="1.2" />
+              <circle cx="13" cy="5" r="1.2" />
+              <circle cx="7" cy="10" r="1.2" />
+              <circle cx="13" cy="10" r="1.2" />
+              <circle cx="7" cy="15" r="1.2" />
+              <circle cx="13" cy="15" r="1.2" />
+            </svg>
           </button>
         }
       />

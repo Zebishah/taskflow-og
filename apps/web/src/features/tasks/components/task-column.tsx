@@ -18,12 +18,37 @@ interface TaskColumnProps {
   onStatusChange: (task: Task, status: TaskStatus) => void;
 }
 
-const statusDotClasses: Record<TaskStatus, string> = {
-  backlog: "bg-slate-400",
-  todo: "bg-blue-500",
-  in_progress: "bg-violet-500",
-  in_review: "bg-amber-500",
-  done: "bg-emerald-500",
+const statusStyles: Record<
+  TaskStatus,
+  {
+    dot: string;
+    background: string;
+  }
+> = {
+  backlog: {
+    dot: "bg-slate-400",
+    background: "from-slate-50 to-slate-100/70",
+  },
+
+  todo: {
+    dot: "bg-blue-500",
+    background: "from-blue-50/70 to-slate-100/70",
+  },
+
+  in_progress: {
+    dot: "bg-violet-500",
+    background: "from-violet-50/70 to-slate-100/70",
+  },
+
+  in_review: {
+    dot: "bg-amber-500",
+    background: "from-amber-50/70 to-slate-100/70",
+  },
+
+  done: {
+    dot: "bg-emerald-500",
+    background: "from-emerald-50/70 to-slate-100/70",
+  },
 };
 
 export function TaskColumn({
@@ -47,37 +72,40 @@ export function TaskColumn({
     },
   });
 
+  const style = statusStyles[status];
+
   return (
     <section
       ref={setNodeRef}
       data-cy={`task-column-${status}`}
       className={[
-        "min-w-0 rounded-[26px] border p-3 transition duration-200",
+        "w-[300px] shrink-0 rounded-[28px] border bg-gradient-to-b p-3",
+        "transition duration-200",
+        style.background,
         isOver
-          ? "border-violet-400 bg-violet-100/80 shadow-xl shadow-violet-100"
-          : "border-slate-200/80 bg-slate-100/70",
+          ? "border-violet-400 shadow-[0_20px_50px_-25px_rgba(124,58,237,.45)] ring-4 ring-violet-100"
+          : "border-slate-200/80",
       ].join(" ")}
     >
-      <header className="flex items-center justify-between gap-3 px-2 py-2">
-        <div className="flex items-center gap-2">
+      <header className="flex items-center justify-between gap-3 px-2 py-2.5">
+        <div className="flex items-center gap-2.5">
           <span
-            className={[
-              "h-2.5 w-2.5 rounded-full",
-              statusDotClasses[status],
-            ].join(" ")}
+            className={["h-2.5 w-2.5 rounded-full shadow-sm", style.dot].join(
+              " ",
+            )}
           />
 
-          <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-700">
+          <h2 className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-700">
             {taskStatusLabels[status]}
           </h2>
         </div>
 
-        <span className="flex h-6 min-w-6 items-center justify-center rounded-lg bg-white px-1.5 text-[10px] font-bold text-slate-500 shadow-sm">
+        <span className="flex h-7 min-w-7 items-center justify-center rounded-xl border border-slate-200/70 bg-white px-2 text-[10px] font-bold text-slate-500 shadow-sm">
           {tasks.length}
         </span>
       </header>
 
-      <div className="mt-2 min-h-32 space-y-3">
+      <div className="mt-1 min-h-40 space-y-3">
         {tasks.map((task) => (
           <DraggableTaskCard
             key={task.id}
@@ -96,10 +124,29 @@ export function TaskColumn({
         ))}
 
         {tasks.length === 0 && (
-          <div className="rounded-[20px] border border-dashed border-slate-300 bg-white/50 px-4 py-8 text-center">
-            <p className="text-xs font-medium text-slate-400">
-              Drop tasks here
-            </p>
+          <div
+            className={[
+              "flex min-h-36 items-center justify-center rounded-[22px]",
+              "border-2 border-dashed px-5 text-center transition",
+              isOver
+                ? "border-violet-300 bg-violet-50 text-violet-600"
+                : "border-slate-200 bg-white/45 text-slate-400",
+            ].join(" ")}
+          >
+            <div>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                className="mx-auto h-6 w-6"
+              >
+                <path d="M12 4v16M4 12h16" />
+              </svg>
+
+              <p className="mt-2 text-xs font-semibold">Drop tasks here</p>
+            </div>
           </div>
         )}
       </div>
