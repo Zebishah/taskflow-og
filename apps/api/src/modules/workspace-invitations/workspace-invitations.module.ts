@@ -5,7 +5,7 @@ import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { WorkspaceInvitationsController } from './workspace-invitations.controller';
 import { WorkspaceInvitationsRepository } from './workspace-invitations.repository';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
-import { QueueModule } from 'src/infrastructure/queue/queue.module';
+import { QueueModule } from '../../infrastructure/queue/queue.module';
 
 @Module({
   imports: [AuthModule, QueueModule, WorkspacesModule, WorkspaceMembersModule],

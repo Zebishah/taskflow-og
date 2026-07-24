@@ -58,6 +58,6 @@ class QueueLifecycleService implements OnApplicationShutdown {
     QueueLifecycleService,
   ],
 
-  exports: [InvitationEmailQueueService],
+  exports: [INVITATION_EMAIL_QUEUE, InvitationEmailQueueService],
 })
 export class QueueModule {}

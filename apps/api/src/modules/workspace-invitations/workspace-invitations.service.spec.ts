@@ -164,7 +164,7 @@ describe('WorkspaceInvitationsService queueing', () => {
     });
 
     // return a mock Job-like object to satisfy the enqueue return type
-    enqueue.mockResolvedValue({} as any);
+    enqueue.mockResolvedValue(undefined);
 
     const moduleReference = await Test.createTestingModule({
       providers: [

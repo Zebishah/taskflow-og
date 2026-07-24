@@ -32,7 +32,8 @@ class EnvironmentVariables {
   @Min(10)
   @Max(15)
   BCRYPT_SALT_ROUNDS!: number;
-
+  @IsIn(['true', 'false'])
+  BULL_BOARD_ENABLED!: 'true' | 'false';
   @IsIn(['development', 'test', 'production'])
   NODE_ENV!: 'development' | 'test' | 'production';
   @IsUrl({

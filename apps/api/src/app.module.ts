@@ -12,6 +12,7 @@ import { WorkspaceMembersModule } from './modules/workspace-members/workspace-me
 import { WorkspaceInvitationsModule } from './modules/workspace-invitations/workspace-invitations.module';
 import { ProjectsModule } from './modules/projects/project.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { BullBoardModule } from './infrastructure/bull-board/bull-board.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
     }),
     DatabaseModule,
     HealthModule,
+    BullBoardModule,
     UsersModule,
     AuthModule,
     WorkspacesModule,
