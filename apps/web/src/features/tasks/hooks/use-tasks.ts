@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 
 import { useAuth } from "../../auth/use-auth";
 import {
@@ -210,6 +215,100 @@ export function useDeleteTaskMutation() {
           currentTasks?.filter((task) => task.id !== variables.taskId),
       );
 
+      void queryClient.invalidateQueries({
+        queryKey: taskQueryKeys.lists(
+          variables.workspaceId,
+          variables.projectId,
+        ),
+      });
+    },
+  });
+}
+interface MoveTaskVariables {
+  workspaceId: string;
+  projectId: string;
+  task: Task;
+  status: Task["status"];
+}
+
+interface MoveTaskContext {
+  snapshots: Array<readonly [QueryKey, Task[] | undefined]>;
+}
+
+export function useMoveTaskMutation() {
+  const { accessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation<Task, Error, MoveTaskVariables, MoveTaskContext>({
+    mutationFn: ({ workspaceId, projectId, task, status }) =>
+      updateTask(
+        workspaceId,
+        projectId,
+        task.id,
+        {
+          status,
+        },
+        requireAccessToken(accessToken),
+      ),
+
+    onMutate: async (variables) => {
+      const listKey = taskQueryKeys.lists(
+        variables.workspaceId,
+        variables.projectId,
+      );
+
+      await queryClient.cancelQueries({
+        queryKey: listKey,
+      });
+
+      const snapshots = queryClient.getQueriesData<Task[]>({
+        queryKey: listKey,
+      });
+
+      queryClient.setQueriesData<Task[]>(
+        {
+          queryKey: listKey,
+        },
+        (currentTasks) =>
+          currentTasks?.map((task) =>
+            task.id === variables.task.id
+              ? {
+                  ...task,
+                  status: variables.status,
+                }
+              : task,
+          ),
+      );
+
+      return {
+        snapshots,
+      };
+    },
+
+    onError: (_error, _variables, context) => {
+      for (const [queryKey, tasks] of context?.snapshots ?? []) {
+        queryClient.setQueryData(queryKey, tasks);
+      }
+    },
+
+    onSuccess: (task) => {
+      queryClient.setQueryData(
+        taskQueryKeys.detail(task.workspaceId, task.projectId, task.id),
+        task,
+      );
+
+      queryClient.setQueriesData<Task[]>(
+        {
+          queryKey: taskQueryKeys.lists(task.workspaceId, task.projectId),
+        },
+        (currentTasks) =>
+          currentTasks?.map((currentTask) =>
+            currentTask.id === task.id ? task : currentTask,
+          ),
+      );
+    },
+
+    onSettled: (_data, _error, variables) => {
       void queryClient.invalidateQueries({
         queryKey: taskQueryKeys.lists(
           variables.workspaceId,

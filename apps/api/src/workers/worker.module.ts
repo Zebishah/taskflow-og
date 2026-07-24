@@ -8,7 +8,9 @@ import { WorkspaceInvitationsRepository } from '../modules/workspace-invitations
 
 import { InvitationEmailWorker } from './invitation-email.worker';
 import { InvitationEmailProcessor } from './invitation-email.processor';
-
+import { TaskReminderProcessor } from './task-reminder.processor';
+import { TaskReminderRepository } from './task-reminder.repository';
+import { TaskReminderWorker } from './task-reminder.worker';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -25,6 +27,10 @@ import { InvitationEmailProcessor } from './invitation-email.processor';
     WorkspaceInvitationsRepository,
     InvitationEmailProcessor,
     InvitationEmailWorker,
+
+    TaskReminderRepository,
+    TaskReminderProcessor,
+    TaskReminderWorker,
   ],
 })
 export class WorkerModule {}

@@ -3,13 +3,14 @@ import { Link, useParams } from "react-router-dom";
 
 import { ConfirmationDialog } from "../../../shared/components/confirmation-dialog";
 import { useWorkspaceMembersQuery } from "../../workspace-collaboration/hooks/use-workspace-collaboration";
-import { TaskCard } from "../../tasks/components/task-card";
+
 import { TaskFormDialog } from "../../tasks/components/task-form-dialog";
 import {
   useCreateTaskMutation,
   useDeleteTaskMutation,
   useTasksQuery,
   useUpdateTaskMutation,
+  useMoveTaskMutation,
 } from "../../tasks/hooks/use-tasks";
 import type {
   Task,
@@ -27,6 +28,7 @@ import { useWorkspaceQuery } from "../../workspaces/hooks/use-workspaces";
 import { getWorkspaceErrorMessage } from "../../workspaces/workspace-api";
 import { useProjectQuery } from "../hooks/use-projects";
 import { isProjectArchived } from "../project.types";
+import { TaskBoard } from "../../tasks/components/task-board";
 
 type TaskDialogState =
   | {
@@ -90,6 +92,8 @@ export function ProjectOverviewPage(): React.JSX.Element {
   const updateTaskMutation = useUpdateTaskMutation();
 
   const deleteTaskMutation = useDeleteTaskMutation();
+
+  const moveTaskMutation = useMoveTaskMutation();
 
   const tasksByStatus = useMemo(() => {
     const grouped: Record<TaskStatus, Task[]> = {
@@ -175,16 +179,18 @@ export function ProjectOverviewPage(): React.JSX.Element {
   const taskMutationError =
     createTaskMutation.error ??
     updateTaskMutation.error ??
+    moveTaskMutation.error ??
     deleteTaskMutation.error;
 
   const isMutating =
     createTaskMutation.isPending ||
     updateTaskMutation.isPending ||
+    moveTaskMutation.isPending ||
     deleteTaskMutation.isPending;
 
-  function findAssignee(task: Task) {
-    return members.find((member) => member.id === task.assigneeMemberId);
-  }
+  // function findAssignee(task: Task) {
+  //   return members.find((member) => member.id === task.assigneeMemberId);
+  // }
 
   async function submitTask(values: TaskFormValues): Promise<void> {
     if (!workspaceId || !projectId || !dialogState) {
@@ -236,13 +242,11 @@ export function ProjectOverviewPage(): React.JSX.Element {
     }
 
     try {
-      await updateTaskMutation.mutateAsync({
+      await moveTaskMutation.mutateAsync({
         workspaceId,
         projectId,
-        taskId: task.id,
-        input: {
-          status,
-        },
+        task,
+        status,
       });
 
       setSuccessMessage(
@@ -251,7 +255,7 @@ export function ProjectOverviewPage(): React.JSX.Element {
         ].toLowerCase()}.`,
       );
     } catch {
-      // Mutation error is rendered below.
+      // Optimistic state is automatically rolled back.
     }
   }
 
@@ -453,79 +457,26 @@ export function ProjectOverviewPage(): React.JSX.Element {
         )}
       </div>
 
-      <div className="mt-6 grid items-start gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {taskStatuses.map((status) => {
-          const statusTasks = tasksByStatus[status];
+      <TaskBoard
+        tasksByStatus={tasksByStatus}
+        projectKey={project.key}
+        members={members}
+        isArchived={archived}
+        canDelete={canDelete}
+        isUpdating={isMutating}
+        onEdit={(selectedTask) => {
+          updateTaskMutation.reset();
 
-          return (
-            <section
-              key={status}
-              className="min-w-0 rounded-[26px] border border-slate-200/80 bg-slate-100/70 p-3"
-            >
-              <header className="flex items-center justify-between gap-3 px-2 py-2">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={[
-                      "h-2.5 w-2.5 rounded-full",
-                      status === "done"
-                        ? "bg-emerald-500"
-                        : status === "in_review"
-                          ? "bg-amber-500"
-                          : status === "in_progress"
-                            ? "bg-violet-500"
-                            : status === "todo"
-                              ? "bg-blue-500"
-                              : "bg-slate-400",
-                    ].join(" ")}
-                  />
-
-                  <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-700">
-                    {taskStatusLabels[status]}
-                  </h2>
-                </div>
-
-                <span className="flex h-6 min-w-6 items-center justify-center rounded-lg bg-white px-1.5 text-[10px] font-bold text-slate-500 shadow-sm">
-                  {statusTasks.length}
-                </span>
-              </header>
-
-              <div className="mt-2 space-y-3">
-                {statusTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    projectKey={project.key}
-                    task={task}
-                    assignee={findAssignee(task)}
-                    isArchived={archived}
-                    canDelete={canDelete}
-                    isUpdating={isMutating}
-                    onEdit={(selectedTask) => {
-                      updateTaskMutation.reset();
-                      setDialogState({
-                        mode: "edit",
-                        task: selectedTask,
-                      });
-                    }}
-                    onDelete={setTaskToDelete}
-                    onStatusChange={(selectedTask, statusValue) =>
-                      void changeTaskStatus(selectedTask, statusValue)
-                    }
-                  />
-                ))}
-
-                {statusTasks.length === 0 && (
-                  <div className="rounded-[20px] border border-dashed border-slate-300 bg-white/50 px-4 py-8 text-center">
-                    <p className="text-xs font-medium text-slate-400">
-                      No tasks here
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-
+          setDialogState({
+            mode: "edit",
+            task: selectedTask,
+          });
+        }}
+        onDelete={setTaskToDelete}
+        onStatusChange={(selectedTask, status) => {
+          void changeTaskStatus(selectedTask, status);
+        }}
+      />
       {(tasksQuery.data ?? []).length === 0 &&
         !search &&
         priorityFilter === "all" &&

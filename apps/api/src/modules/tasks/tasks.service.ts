@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 
 import type { Project, Task, WorkspaceRole } from '../../database/schema';
@@ -12,10 +13,16 @@ import type { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import type { UpdateTaskDto } from './dto/update-task.dto';
 import { TasksRepository } from './tasks.repository';
 import type { UpdateTaskRepositoryInput } from './tasks.types';
+import { TaskReminderQueueService } from 'src/infrastructure/queue/task-reminder-queue.service';
 
 @Injectable()
 export class TasksService {
-  public constructor(private readonly tasksRepository: TasksRepository) {}
+  private readonly logger = new Logger(TasksService.name);
+
+  public constructor(
+    private readonly tasksRepository: TasksRepository,
+    private readonly taskReminderQueueService: TaskReminderQueueService,
+  ) {}
 
   public async create(
     context: WorkspaceMembershipContext,
@@ -58,6 +65,8 @@ export class TasksService {
         'The project was changed or archived before the task could be created',
       );
     }
+
+    await this.reconcileReminderSafely(null, task);
 
     return task;
   }
@@ -165,6 +174,10 @@ export class TasksService {
       throw new NotFoundException('Task was not found');
     }
 
+    if (this.didReminderConfigurationChange(existingTask, task)) {
+      await this.reconcileReminderSafely(existingTask, task);
+    }
+
     return task;
   }
 
@@ -179,7 +192,12 @@ export class TasksService {
       context.workspace.id,
       projectId,
     );
-
+    const existingTask = await this.findTaskOrFail(
+      context.workspace.id,
+      projectId,
+      taskId,
+    );
+    await this.reconcileReminderSafely(existingTask, null);
     this.assertProjectIsActive(project);
 
     await this.findTaskOrFail(context.workspace.id, projectId, taskId);
@@ -267,5 +285,32 @@ export class TasksService {
     const normalizedValue = value?.trim();
 
     return normalizedValue ? normalizedValue : null;
+  }
+  private didReminderConfigurationChange(
+    previousTask: Task,
+    currentTask: Task,
+  ): boolean {
+    return (
+      previousTask.assigneeMemberId !== currentTask.assigneeMemberId ||
+      previousTask.dueAt?.getTime() !== currentTask.dueAt?.getTime() ||
+      (previousTask.status === 'done') !== (currentTask.status === 'done')
+    );
+  }
+
+  private async reconcileReminderSafely(
+    previousTask: Task | null,
+    currentTask: Task | null,
+  ): Promise<void> {
+    try {
+      await this.taskReminderQueueService.reconcile(previousTask, currentTask);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? (error.stack ?? error.message) : String(error);
+
+      this.logger.error(
+        'Task was saved, but its reminder could not be synchronized',
+        message,
+      );
+    }
   }
 }

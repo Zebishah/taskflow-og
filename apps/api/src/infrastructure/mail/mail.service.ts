@@ -6,7 +6,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 
-import type { SendMailInput, WorkspaceInvitationMailInput } from './mail.types';
+import type {
+  SendMailInput,
+  WorkspaceInvitationMailInput,
+  TaskDueReminderMailInput,
+} from './mail.types';
 
 @Injectable()
 export class MailService {
@@ -59,7 +63,131 @@ export class MailService {
 
     return data.id;
   }
+  public async sendTaskDueReminder(
+    input: TaskDueReminderMailInput,
+  ): Promise<string> {
+    const dueText = input.dueAt.toUTCString();
 
+    const recipientName = this.escapeHtml(input.recipientFirstName);
+
+    const workspaceName = this.escapeHtml(input.workspaceName);
+
+    const projectName = this.escapeHtml(input.projectName);
+
+    const taskIdentifier = this.escapeHtml(input.taskIdentifier);
+
+    const taskTitle = this.escapeHtml(input.taskTitle);
+
+    const taskUrl = this.escapeHtml(input.taskUrl);
+
+    return this.sendMail({
+      to: input.recipientEmail,
+
+      subject: `${input.taskIdentifier} is due soon — ` + input.taskTitle,
+
+      text: [
+        `Hi ${input.recipientFirstName},`,
+        '',
+        `Your assigned task ${input.taskIdentifier} is due soon.`,
+        `Task: ${input.taskTitle}`,
+        `Project: ${input.projectName}`,
+        `Workspace: ${input.workspaceName}`,
+        `Due: ${dueText}`,
+        '',
+        `Open task: ${input.taskUrl}`,
+      ].join('\n'),
+
+      html: `
+      <!doctype html>
+      <html lang="en">
+        <body
+          style="
+            margin:0;
+            padding:32px 16px;
+            background:#f8fafc;
+            font-family:Arial,sans-serif;
+            color:#0f172a;
+          "
+        >
+          <div
+            style="
+              max-width:600px;
+              margin:0 auto;
+              border:1px solid #e2e8f0;
+              border-radius:24px;
+              background:#ffffff;
+              overflow:hidden;
+            "
+          >
+            <div
+              style="
+                padding:24px 30px;
+                background:#0a0c20;
+                color:#ffffff;
+                font-size:20px;
+                font-weight:700;
+              "
+            >
+              Task<span style="color:#6ee7b7">Flow</span>
+            </div>
+
+            <div style="padding:32px 30px">
+              <p style="color:#64748b">
+                Hi ${recipientName},
+              </p>
+
+              <h1 style="font-size:26px">
+                Your task is due soon
+              </h1>
+
+              <div
+                style="
+                  margin:24px 0;
+                  padding:20px;
+                  border-radius:16px;
+                  background:#f5f3ff;
+                "
+              >
+                <strong style="color:#7c3aed">
+                  ${taskIdentifier}
+                </strong>
+
+                <h2 style="margin:10px 0">
+                  ${taskTitle}
+                </h2>
+
+                <p style="margin:6px 0;color:#64748b">
+                  ${projectName} · ${workspaceName}
+                </p>
+
+                <p style="margin:6px 0;color:#be123c">
+                  Due ${dueText}
+                </p>
+              </div>
+
+              <a
+                href="${taskUrl}"
+                style="
+                  display:inline-block;
+                  padding:13px 20px;
+                  border-radius:12px;
+                  background:#7c3aed;
+                  color:#ffffff;
+                  text-decoration:none;
+                  font-weight:700;
+                "
+              >
+                Open task board
+              </a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+
+      idempotencyKey: input.idempotencyKey,
+    });
+  }
   public async sendWorkspaceInvitation(
     input: WorkspaceInvitationMailInput,
   ): Promise<string> {

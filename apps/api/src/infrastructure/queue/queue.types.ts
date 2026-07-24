@@ -1,3 +1,7 @@
+/*
+ * Invitation email queue
+ */
+
 export interface InvitationEmailJobData {
   invitationId: string;
   workspaceId: string;
@@ -11,15 +15,28 @@ export interface InvitationEmailJobData {
 
 export type InvitationEmailJobName = 'send-invitation-email';
 
-/**
- * This smaller interface contains only the BullMQ job
- * properties needed by our business processor.
- *
- * Unit tests can create this object without constructing
- * a real BullMQ Job instance.
- */
 export interface InvitationEmailJob {
   id?: string;
   name: InvitationEmailJobName;
   data: InvitationEmailJobData;
+}
+
+/*
+ * Task reminder queue
+ */
+
+export interface TaskReminderJobData {
+  taskId: string;
+  workspaceId: string;
+  projectId: string;
+  assigneeMemberId: string;
+  dueAt: string;
+}
+
+export type TaskReminderJobName = 'send-task-due-reminder';
+
+export interface TaskReminderJob {
+  id?: string;
+  name: TaskReminderJobName;
+  data: TaskReminderJobData;
 }

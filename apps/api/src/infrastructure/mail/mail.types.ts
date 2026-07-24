@@ -15,3 +15,14 @@ export interface WorkspaceInvitationMailInput {
   expiresAt: Date;
   idempotencyKey: string;
 }
+export interface TaskDueReminderMailInput {
+  recipientEmail: string;
+  recipientFirstName: string;
+  workspaceName: string;
+  projectName: string;
+  taskIdentifier: string;
+  taskTitle: string;
+  taskUrl: string;
+  dueAt: Date;
+  idempotencyKey: string;
+}

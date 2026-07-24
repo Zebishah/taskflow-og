@@ -41,6 +41,15 @@ class EnvironmentVariables {
     protocols: ['redis', 'rediss'],
   })
   REDIS_URL!: string;
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  QUEUE_TASK_REMINDER_CONCURRENCY!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(10_080)
+  TASK_REMINDER_LEAD_MINUTES!: number;
 
   @IsInt()
   @Min(1)
