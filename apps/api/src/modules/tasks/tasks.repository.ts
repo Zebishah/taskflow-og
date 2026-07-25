@@ -4,6 +4,8 @@ import { and, asc, eq, ilike, isNull, sql, type SQL } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.constants';
 import type { Database } from '../../database/database.types';
 import {
+  ProjectColumn,
+  projectColumns,
   projects,
   tasks,
   workspaceMembers,
@@ -98,19 +100,14 @@ export class TasksRepository {
           projectId: input.projectId,
           createdByUserId: input.createdByUserId,
           assigneeMemberId: input.assigneeMemberId,
+          columnId: input.columnId,
           taskNumber,
           title: input.title,
           description: input.description,
-          status: input.status,
           priority: input.priority,
-
-          /*
-           * Gaps make later drag-and-drop insertion easier.
-           */
-          position: taskNumber * 1000,
-
+          position: taskNumber * 1_000,
           dueAt: input.dueAt,
-          completedAt: input.status === 'done' ? new Date() : null,
+          completedAt: input.completedAt,
         })
         .returning();
 
@@ -131,9 +128,8 @@ export class TasksRepository {
       eq(tasks.workspaceId, workspaceId),
       eq(tasks.projectId, projectId),
     ];
-
-    if (filters.status !== undefined) {
-      conditions.push(eq(tasks.status, filters.status));
+    if (filters.columnId !== undefined) {
+      conditions.push(eq(tasks.columnId, filters.columnId));
     }
 
     if (filters.priority !== undefined) {
@@ -152,9 +148,47 @@ export class TasksRepository {
       .select()
       .from(tasks)
       .where(and(...conditions))
-      .orderBy(asc(tasks.status), asc(tasks.position), asc(tasks.createdAt));
+      .orderBy(asc(tasks.columnId), asc(tasks.position), asc(tasks.createdAt));
+  }
+  public async findColumnById(
+    projectId: string,
+    columnId: string,
+  ): Promise<ProjectColumn | null> {
+    const [column] = await this.database
+      .select()
+      .from(projectColumns)
+      .where(
+        and(
+          eq(projectColumns.projectId, projectId),
+          eq(projectColumns.id, columnId),
+        ),
+      )
+      .limit(1);
+
+    return column ?? null;
   }
 
+  public async findDefaultColumn(
+    projectId: string,
+  ): Promise<ProjectColumn | null> {
+    const [column] = await this.database
+      .select()
+      .from(projectColumns)
+      .where(eq(projectColumns.projectId, projectId))
+      .orderBy(
+        sql`
+        CASE ${projectColumns.kind}
+          WHEN 'active' THEN 0
+          WHEN 'backlog' THEN 1
+          ELSE 2
+        END
+      `,
+        asc(projectColumns.position),
+      )
+      .limit(1);
+
+    return column ?? null;
+  }
   public async findById(
     workspaceId: string,
     projectId: string,

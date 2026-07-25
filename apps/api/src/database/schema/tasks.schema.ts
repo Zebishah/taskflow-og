@@ -13,7 +13,12 @@ import {
 
 import { projects } from './projects.schema';
 import { taskPriorityEnum } from './task-priority.enum';
-import { taskStatusEnum } from './task-status.enum';
+import {
+  foreignKey,
+  // existing imports...
+} from 'drizzle-orm/pg-core';
+
+import { projectColumns } from './project-columns.schema';
 import { users } from './users.schema';
 import { workspaceMembers } from './workspace-members.schema';
 import { workspaces } from './workspaces.schema';
@@ -56,7 +61,7 @@ export const tasks = pgTable(
 
     description: text('description'),
 
-    status: taskStatusEnum('status').default('todo').notNull(),
+    columnId: uuid('column_id').notNull(),
 
     priority: taskPriorityEnum('priority').default('medium').notNull(),
 
@@ -104,12 +109,16 @@ export const tasks = pgTable(
 
     index('tasks_project_id_index').on(table.projectId),
 
-    index('tasks_project_status_position_index').on(
+    index('tasks_project_column_position_index').on(
       table.projectId,
-      table.status,
+      table.columnId,
       table.position,
     ),
-
+    foreignKey({
+      columns: [table.projectId, table.columnId],
+      foreignColumns: [projectColumns.projectId, projectColumns.id],
+      name: 'tasks_project_column_foreign_key',
+    }).onDelete('restrict'),
     index('tasks_workspace_assignee_index').on(
       table.workspaceId,
       table.assigneeMemberId,

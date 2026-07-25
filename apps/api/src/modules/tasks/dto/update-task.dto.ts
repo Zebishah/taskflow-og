@@ -13,10 +13,6 @@ import {
   taskPriorityValues,
   type TaskPriority,
 } from '../../../database/schema/task-priority.enum';
-import {
-  taskStatusValues,
-  type TaskStatus,
-} from '../../../database/schema/task-status.enum';
 
 export class UpdateTaskDto {
   @Transform(({ value }: { value: unknown }) =>
@@ -36,23 +32,17 @@ export class UpdateTaskDto {
   public description?: string | null;
 
   @IsOptional()
-  @IsIn(taskStatusValues)
-  public status?: TaskStatus;
+  @IsUUID('4')
+  public columnId?: string;
 
   @IsOptional()
   @IsIn(taskPriorityValues)
   public priority?: TaskPriority;
 
-  /*
-   * null means remove the current assignee.
-   */
   @IsOptional()
   @IsUUID('4')
   public assigneeMemberId?: string | null;
 
-  /*
-   * null means remove the due date.
-   */
   @IsOptional()
   @IsISO8601(
     {

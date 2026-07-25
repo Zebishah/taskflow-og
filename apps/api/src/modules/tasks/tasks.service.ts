@@ -2,18 +2,23 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 
-import type { Project, Task, WorkspaceRole } from '../../database/schema';
+import type {
+  Project,
+  ProjectColumn,
+  Task,
+  WorkspaceRole,
+} from '../../database/schema';
+import { TaskReminderQueueService } from '../../infrastructure/queue/task-reminder-queue.service';
 import type { WorkspaceMembershipContext } from '../workspaces/workspaces.types';
 import type { CreateTaskDto } from './dto/create-task.dto';
 import type { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import type { UpdateTaskDto } from './dto/update-task.dto';
 import { TasksRepository } from './tasks.repository';
 import type { UpdateTaskRepositoryInput } from './tasks.types';
-import { TaskReminderQueueService } from 'src/infrastructure/queue/task-reminder-queue.service';
 
 @Injectable()
 export class TasksService {
@@ -29,36 +34,46 @@ export class TasksService {
     projectId: string,
     dto: CreateTaskDto,
   ): Promise<Task> {
-    const project = await this.findProjectOrFail(
-      context.workspace.id,
-      projectId,
-    );
+    const workspaceId = context.workspace.id;
+
+    const project = await this.findProjectOrFail(workspaceId, projectId);
 
     this.assertProjectIsActive(project);
 
     if (dto.assigneeMemberId !== undefined) {
-      await this.assertValidAssignee(
-        context.workspace.id,
-        dto.assigneeMemberId,
-      );
+      await this.assertValidAssignee(workspaceId, dto.assigneeMemberId);
     }
 
+    /*
+     * If the frontend selected a column, validate it.
+     * Otherwise, use the project's default active column.
+     */
+    const column =
+      dto.columnId !== undefined
+        ? await this.findColumnOrFail(projectId, dto.columnId)
+        : await this.findDefaultColumnOrFail(projectId);
+
     const task = await this.tasksRepository.create({
-      workspaceId: context.workspace.id,
+      workspaceId,
       projectId,
       createdByUserId: context.membership.userId,
       assigneeMemberId: dto.assigneeMemberId ?? null,
+      columnId: column.id,
       title: dto.title.trim(),
       description: this.normalizeDescription(dto.description),
-      status: dto.status ?? 'todo',
       priority: dto.priority ?? 'medium',
-      dueAt: dto.dueAt ? new Date(dto.dueAt) : null,
+      dueAt: dto.dueAt !== undefined ? new Date(dto.dueAt) : null,
+
+      /*
+       * Creating a task inside a completion column means
+       * it is already completed.
+       */
+      completedAt: column.kind === 'done' ? new Date() : null,
     });
 
     /*
-     * This can happen if the project was archived
-     * after our first project check but before the
-     * transaction updated its task counter.
+     * The repository returns null when the project is
+     * archived between the initial check and its transaction.
      */
     if (!task) {
       throw new ConflictException(
@@ -76,10 +91,20 @@ export class TasksService {
     projectId: string,
     query: ListTasksQueryDto,
   ): Promise<Task[]> {
-    await this.findProjectOrFail(context.workspace.id, projectId);
+    const workspaceId = context.workspace.id;
 
-    return this.tasksRepository.findAll(context.workspace.id, projectId, {
-      status: query.status,
+    await this.findProjectOrFail(workspaceId, projectId);
+
+    /*
+     * Validate a column filter so a column belonging to
+     * another project cannot be supplied.
+     */
+    if (query.columnId !== undefined) {
+      await this.findColumnOrFail(projectId, query.columnId);
+    }
+
+    return this.tasksRepository.findAll(workspaceId, projectId, {
+      columnId: query.columnId,
       priority: query.priority,
       assigneeMemberId: query.assigneeMemberId,
       search: query.search,
@@ -91,9 +116,11 @@ export class TasksService {
     projectId: string,
     taskId: string,
   ): Promise<Task> {
-    await this.findProjectOrFail(context.workspace.id, projectId);
+    const workspaceId = context.workspace.id;
 
-    return this.findTaskOrFail(context.workspace.id, projectId, taskId);
+    await this.findProjectOrFail(workspaceId, projectId);
+
+    return this.findTaskOrFail(workspaceId, projectId, taskId);
   }
 
   public async update(
@@ -102,24 +129,20 @@ export class TasksService {
     taskId: string,
     dto: UpdateTaskDto,
   ): Promise<Task> {
-    const project = await this.findProjectOrFail(
-      context.workspace.id,
-      projectId,
-    );
+    const workspaceId = context.workspace.id;
+
+    const project = await this.findProjectOrFail(workspaceId, projectId);
 
     this.assertProjectIsActive(project);
 
     const existingTask = await this.findTaskOrFail(
-      context.workspace.id,
+      workspaceId,
       projectId,
       taskId,
     );
 
     if (dto.assigneeMemberId !== undefined && dto.assigneeMemberId !== null) {
-      await this.assertValidAssignee(
-        context.workspace.id,
-        dto.assigneeMemberId,
-      );
+      await this.assertValidAssignee(workspaceId, dto.assigneeMemberId);
     }
 
     const updateData: UpdateTaskRepositoryInput = {};
@@ -147,14 +170,29 @@ export class TasksService {
       updateData.dueAt = dto.dueAt === null ? null : new Date(dto.dueAt);
     }
 
-    if (dto.status !== undefined) {
-      updateData.status = dto.status;
+    /*
+     * A task now moves by changing columnId instead
+     * of changing a fixed status enum.
+     */
+    if (dto.columnId !== undefined) {
+      const destinationColumn = await this.findColumnOrFail(
+        projectId,
+        dto.columnId,
+      );
 
-      if (dto.status === 'done' && existingTask.status !== 'done') {
-        updateData.completedAt = new Date();
-      }
+      updateData.columnId = destinationColumn.id;
 
-      if (dto.status !== 'done' && existingTask.status === 'done') {
+      if (destinationColumn.kind === 'done') {
+        /*
+         * Preserve the original completion time when
+         * moving between two completion columns.
+         */
+        updateData.completedAt = existingTask.completedAt ?? new Date();
+      } else {
+        /*
+         * Moving a completed task back to backlog or
+         * active work reopens it.
+         */
         updateData.completedAt = null;
       }
     }
@@ -163,22 +201,22 @@ export class TasksService {
       return existingTask;
     }
 
-    const task = await this.tasksRepository.update(
-      context.workspace.id,
+    const updatedTask = await this.tasksRepository.update(
+      workspaceId,
       projectId,
       taskId,
       updateData,
     );
 
-    if (!task) {
+    if (!updatedTask) {
       throw new NotFoundException('Task was not found');
     }
 
-    if (this.didReminderConfigurationChange(existingTask, task)) {
-      await this.reconcileReminderSafely(existingTask, task);
+    if (this.didReminderConfigurationChange(existingTask, updatedTask)) {
+      await this.reconcileReminderSafely(existingTask, updatedTask);
     }
 
-    return task;
+    return updatedTask;
   }
 
   public async delete(
@@ -188,22 +226,20 @@ export class TasksService {
   ): Promise<void> {
     this.assertCanDeleteTasks(context.membership.role);
 
-    const project = await this.findProjectOrFail(
-      context.workspace.id,
-      projectId,
-    );
+    const workspaceId = context.workspace.id;
+
+    const project = await this.findProjectOrFail(workspaceId, projectId);
+
+    this.assertProjectIsActive(project);
+
     const existingTask = await this.findTaskOrFail(
-      context.workspace.id,
+      workspaceId,
       projectId,
       taskId,
     );
-    await this.reconcileReminderSafely(existingTask, null);
-    this.assertProjectIsActive(project);
-
-    await this.findTaskOrFail(context.workspace.id, projectId, taskId);
 
     const deletedTask = await this.tasksRepository.delete(
-      context.workspace.id,
+      workspaceId,
       projectId,
       taskId,
     );
@@ -211,6 +247,15 @@ export class TasksService {
     if (!deletedTask) {
       throw new NotFoundException('Task was not found');
     }
+
+    /*
+     * Cancel the reminder after successful deletion.
+     *
+     * The previous implementation cancelled the reminder
+     * before deleting the task. If deletion failed, the
+     * task would incorrectly remain without a reminder.
+     */
+    await this.reconcileReminderSafely(existingTask, null);
   }
 
   private async findProjectOrFail(
@@ -247,6 +292,36 @@ export class TasksService {
     return task;
   }
 
+  private async findColumnOrFail(
+    projectId: string,
+    columnId: string,
+  ): Promise<ProjectColumn> {
+    const column = await this.tasksRepository.findColumnById(
+      projectId,
+      columnId,
+    );
+
+    if (!column) {
+      throw new NotFoundException('The selected project column was not found');
+    }
+
+    return column;
+  }
+
+  private async findDefaultColumnOrFail(
+    projectId: string,
+  ): Promise<ProjectColumn> {
+    const column = await this.tasksRepository.findDefaultColumn(projectId);
+
+    if (!column) {
+      throw new ConflictException(
+        'The project does not have an available task column',
+      );
+    }
+
+    return column;
+  }
+
   private async assertValidAssignee(
     workspaceId: string,
     membershipId: string,
@@ -264,7 +339,7 @@ export class TasksService {
   }
 
   private assertProjectIsActive(project: Project): void {
-    if (project.archivedAt) {
+    if (project.archivedAt !== null) {
       throw new ConflictException(
         'Restore this project before modifying its tasks',
       );
@@ -284,17 +359,26 @@ export class TasksService {
   private normalizeDescription(value?: string): string | null {
     const normalizedValue = value?.trim();
 
-    return normalizedValue ? normalizedValue : null;
+    return normalizedValue || null;
   }
+
   private didReminderConfigurationChange(
     previousTask: Task,
     currentTask: Task,
   ): boolean {
     return (
       previousTask.assigneeMemberId !== currentTask.assigneeMemberId ||
-      previousTask.dueAt?.getTime() !== currentTask.dueAt?.getTime() ||
-      (previousTask.status === 'done') !== (currentTask.status === 'done')
+      !this.areDatesEqual(previousTask.dueAt, currentTask.dueAt) ||
+      !this.areDatesEqual(previousTask.completedAt, currentTask.completedAt)
     );
+  }
+
+  private areDatesEqual(first: Date | null, second: Date | null): boolean {
+    if (first === null || second === null) {
+      return first === second;
+    }
+
+    return first.getTime() === second.getTime();
   }
 
   private async reconcileReminderSafely(

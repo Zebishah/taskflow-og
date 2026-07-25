@@ -1,5 +1,5 @@
 {
-  "id": "6636b406-806b-45f6-ba50-4bde3cc3ec03",
+  "id": "1991084e-65b0-433f-bbb2-8905c88b778d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1352,6 +1352,27 @@
           "method": "btree",
           "with": {}
         },
+        "project_columns_project_id_id_unique_index": {
+          "name": "project_columns_project_id_id_unique_index",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "project_columns_project_id_index": {
           "name": "project_columns_project_id_index",
           "columns": [
@@ -1384,16 +1405,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "project_columns_project_id_id_unique": {
-          "name": "project_columns_project_id_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id",
-            "id"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
         "project_columns_position_non_negative_check": {

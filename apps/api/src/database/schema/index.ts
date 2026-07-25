@@ -15,7 +15,10 @@ export * from './workspace-invitation-relations';
 export * from './projects.schema';
 export * from './project-relations';
 
-export * from './task-status.enum';
 export * from './task-priority.enum';
 export * from './tasks.schema';
 export * from './task-relations';
+
+export * from './project-column-color.enum';
+export * from './project-column-kind.enum';
+export * from './project-columns.schema';

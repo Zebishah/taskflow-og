@@ -105,8 +105,8 @@ export function useCreateTaskMutation() {
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ workspaceId, projectId, input }: CreateTaskVariables) =>
+  return useMutation<Task, Error, CreateTaskVariables>({
+    mutationFn: ({ workspaceId, projectId, input }) =>
       createTask(
         workspaceId,
         projectId,
@@ -115,7 +115,7 @@ export function useCreateTaskMutation() {
       ),
 
     onSuccess: (task) => {
-      queryClient.setQueryData(
+      queryClient.setQueryData<Task>(
         taskQueryKeys.detail(task.workspaceId, task.projectId, task.id),
         task,
       );
@@ -138,13 +138,8 @@ export function useUpdateTaskMutation() {
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({
-      workspaceId,
-      projectId,
-      taskId,
-      input,
-    }: UpdateTaskVariables) =>
+  return useMutation<Task, Error, UpdateTaskVariables>({
+    mutationFn: ({ workspaceId, projectId, taskId, input }) =>
       updateTask(
         workspaceId,
         projectId,
@@ -154,7 +149,7 @@ export function useUpdateTaskMutation() {
       ),
 
     onSuccess: (task) => {
-      queryClient.setQueryData(
+      queryClient.setQueryData<Task>(
         taskQueryKeys.detail(task.workspaceId, task.projectId, task.id),
         task,
       );
@@ -186,8 +181,8 @@ export function useDeleteTaskMutation() {
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ workspaceId, projectId, taskId }: DeleteTaskVariables) =>
+  return useMutation<void, Error, DeleteTaskVariables>({
+    mutationFn: ({ workspaceId, projectId, taskId }) =>
       deleteTask(
         workspaceId,
         projectId,
@@ -224,11 +219,12 @@ export function useDeleteTaskMutation() {
     },
   });
 }
+
 interface MoveTaskVariables {
   workspaceId: string;
   projectId: string;
   task: Task;
-  status: Task["status"];
+  columnId: string;
 }
 
 interface MoveTaskContext {
@@ -240,18 +236,18 @@ export function useMoveTaskMutation() {
   const queryClient = useQueryClient();
 
   return useMutation<Task, Error, MoveTaskVariables, MoveTaskContext>({
-    mutationFn: ({ workspaceId, projectId, task, status }) =>
+    mutationFn: ({ workspaceId, projectId, task, columnId }) =>
       updateTask(
         workspaceId,
         projectId,
         task.id,
         {
-          status,
+          columnId,
         },
         requireAccessToken(accessToken),
       ),
 
-    onMutate: async (variables) => {
+    onMutate: async (variables): Promise<MoveTaskContext> => {
       const listKey = taskQueryKeys.lists(
         variables.workspaceId,
         variables.projectId,
@@ -274,7 +270,7 @@ export function useMoveTaskMutation() {
             task.id === variables.task.id
               ? {
                   ...task,
-                  status: variables.status,
+                  columnId: variables.columnId,
                 }
               : task,
           ),
@@ -286,13 +282,17 @@ export function useMoveTaskMutation() {
     },
 
     onError: (_error, _variables, context) => {
-      for (const [queryKey, tasks] of context?.snapshots ?? []) {
+      if (!context) {
+        return;
+      }
+
+      for (const [queryKey, tasks] of context.snapshots) {
         queryClient.setQueryData(queryKey, tasks);
       }
     },
 
     onSuccess: (task) => {
-      queryClient.setQueryData(
+      queryClient.setQueryData<Task>(
         taskQueryKeys.detail(task.workspaceId, task.projectId, task.id),
         task,
       );

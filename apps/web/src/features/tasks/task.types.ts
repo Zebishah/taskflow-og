@@ -11,17 +11,16 @@ export type TaskStatus = (typeof taskStatuses)[number];
 export const taskPriorities = ["low", "medium", "high", "urgent"] as const;
 
 export type TaskPriority = (typeof taskPriorities)[number];
-
 export interface Task {
   id: string;
   workspaceId: string;
   projectId: string;
+  columnId: string;
   createdByUserId: string;
   assigneeMemberId: string | null;
   taskNumber: number;
   title: string;
   description: string | null;
-  status: TaskStatus;
   priority: TaskPriority;
   position: number;
   dueAt: string | null;
@@ -29,11 +28,10 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
 }
-
 export interface CreateTaskInput {
   title: string;
   description?: string;
-  status?: TaskStatus;
+  columnId?: string;
   priority?: TaskPriority;
   assigneeMemberId?: string;
   dueAt?: string;
@@ -42,7 +40,7 @@ export interface CreateTaskInput {
 export interface UpdateTaskInput {
   title?: string;
   description?: string | null;
-  status?: TaskStatus;
+  columnId?: string;
   priority?: TaskPriority;
   assigneeMemberId?: string | null;
   dueAt?: string | null;
@@ -58,7 +56,7 @@ export interface TaskFilters {
 export interface TaskFormValues {
   title: string;
   description: string;
-  status: TaskStatus;
+  columnId: string;
   priority: TaskPriority;
   assigneeMemberId: string | null;
   dueAt: string | null;

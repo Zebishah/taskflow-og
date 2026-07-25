@@ -1,26 +1,19 @@
 import { useRef, useState, type FormEvent } from "react";
 import DatePicker from "react-datepicker";
+
 import "react-datepicker/dist/react-datepicker.css";
 import "./task-date-time-picker.css";
 
+import type { ProjectColumn } from "../../project-columns/project-column.types";
 import type { WorkspaceMember } from "../../workspace-collaboration/workspace-collaboration.types";
 import { getWorkspaceErrorMessage } from "../../workspaces/workspace-api";
-import type {
-  Task,
-  TaskFormValues,
-  TaskPriority,
-  TaskStatus,
-} from "../task.types";
-import {
-  taskPriorities,
-  taskPriorityLabels,
-  taskStatuses,
-  taskStatusLabels,
-} from "../task.types";
+import type { Task, TaskFormValues, TaskPriority } from "../task.types";
+import { taskPriorities, taskPriorityLabels } from "../task.types";
 import { RichTextEditor } from "./rich-text-editor";
 
 interface TaskFormDialogProps {
   task?: Task;
+  columns: ProjectColumn[];
   members: WorkspaceMember[];
   isPending: boolean;
   error: unknown;
@@ -31,56 +24,47 @@ interface TaskFormDialogProps {
 interface FormErrors {
   title?: string;
   description?: string;
+  columnId?: string;
   dueAt?: string;
 }
 
-/*
- * Converts the UTC ISO date returned by the API into the
- * local format required by <input type="datetime-local">.
- *
- * Example:
- * API:   2026-07-31T12:00:00.000Z
- * Input: 2026-07-31T17:00
- *        when the browser is using UTC+5.
- */
-interface LocalDueDateParts {
-  date: string;
-  time: string;
+function getInitialColumnId(
+  task: Task | undefined,
+  columns: readonly ProjectColumn[],
+): string {
+  /*
+   * When editing, preserve the task's current column
+   * as long as that column still exists.
+   */
+  if (task && columns.some((column) => column.id === task.columnId)) {
+    return task.columnId;
+  }
+
+  /*
+   * For a new task, prefer the first active column.
+   * If none exists, use backlog, then the first column.
+   */
+  const defaultColumn =
+    columns.find((column) => column.kind === "active") ??
+    columns.find((column) => column.kind === "backlog") ??
+    columns[0];
+
+  return defaultColumn?.id ?? "";
 }
 
-function toLocalDueDateParts(
-  value: string | null | undefined,
-): LocalDueDateParts {
+function parseDueAt(value: string | null | undefined): Date | null {
   if (!value) {
-    return {
-      date: "",
-      time: "",
-    };
+    return null;
   }
 
-  const dueDate = new Date(value);
+  const parsedDate = new Date(value);
 
-  if (Number.isNaN(dueDate.getTime())) {
-    return {
-      date: "",
-      time: "",
-    };
-  }
-
-  const timezoneOffset = dueDate.getTimezoneOffset() * 60_000;
-
-  const localValue = new Date(dueDate.getTime() - timezoneOffset)
-    .toISOString()
-    .slice(0, 16);
-
-  return {
-    date: localValue.slice(0, 10),
-    time: localValue.slice(11, 16),
-  };
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 }
 
 export function TaskFormDialog({
   task,
+  columns,
   members,
   isPending,
   error,
@@ -93,7 +77,9 @@ export function TaskFormDialog({
 
   const [description, setDescription] = useState(task?.description ?? "");
 
-  const [status, setStatus] = useState<TaskStatus>(task?.status ?? "todo");
+  const [columnId, setColumnId] = useState(() =>
+    getInitialColumnId(task, columns),
+  );
 
   const [priority, setPriority] = useState<TaskPriority>(
     task?.priority ?? "medium",
@@ -103,18 +89,31 @@ export function TaskFormDialog({
     task?.assigneeMemberId ?? "",
   );
 
-  const initialDueAt = toLocalDueDateParts(task?.dueAt);
-
-  const [dueDate, setDueDate] = useState(initialDueAt.date);
-
-  const [dueTime, setDueTime] = useState(initialDueAt.time);
+  /*
+   * React DatePicker works directly with Date objects.
+   * The browser displays this Date in the user's local
+   * timezone. We convert it to UTC only when submitting.
+   */
+  const [dueAt, setDueAt] = useState<Date | null>(() =>
+    parseDueAt(task?.dueAt),
+  );
 
   const [errors, setErrors] = useState<FormErrors>({});
 
   const isEditing = task !== undefined;
 
-  const selectedDueAt =
-    dueDate && dueTime ? new Date(`${dueDate}T${dueTime}`) : null;
+  function clearFieldError(field: keyof FormErrors): void {
+    setErrors((current) => {
+      if (current[field] === undefined) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [field]: undefined,
+      };
+    });
+  }
 
   function validate(): boolean {
     const nextErrors: FormErrors = {};
@@ -123,26 +122,24 @@ export function TaskFormDialog({
 
     if (normalizedTitle.length < 2) {
       nextErrors.title = "Title must contain at least 2 characters.";
-    }
-
-    if (normalizedTitle.length > 200) {
+    } else if (normalizedTitle.length > 200) {
       nextErrors.title = "Title cannot exceed 200 characters.";
     }
 
-    if (description.trim().length > 5000) {
+    if (description.trim().length > 5_000) {
       nextErrors.description = "Description cannot exceed 5,000 characters.";
     }
 
-    if ((dueDate && !dueTime) || (!dueDate && dueTime)) {
-      nextErrors.dueAt = "Select both a due date and a due time.";
+    const selectedColumnExists = columns.some(
+      (column) => column.id === columnId,
+    );
+
+    if (!selectedColumnExists) {
+      nextErrors.columnId = "Select a valid project column.";
     }
 
-    if (dueDate && dueTime) {
-      const selectedDueAt = new Date(`${dueDate}T${dueTime}`);
-
-      if (Number.isNaN(selectedDueAt.getTime())) {
-        nextErrors.dueAt = "Enter a valid due date and time.";
-      }
+    if (dueAt !== null && Number.isNaN(dueAt.getTime())) {
+      nextErrors.dueAt = "Enter a valid due date and time.";
     }
 
     setErrors(nextErrors);
@@ -163,23 +160,22 @@ export function TaskFormDialog({
       await onSubmit({
         title: title.trim(),
         description: description.trim(),
-        status,
+        columnId,
         priority,
-
         assigneeMemberId: assigneeMemberId || null,
 
         /*
-         * datetime-local gives local browser time.
-         * Date converts it to UTC and toISOString()
-         * creates the format expected by the API.
+         * React DatePicker returns local browser time.
+         * toISOString converts that exact moment to UTC
+         * for PostgreSQL and the backend.
          */
-        dueAt:
-          dueDate && dueTime
-            ? new Date(`${dueDate}T${dueTime}`).toISOString()
-            : null,
+        dueAt: dueAt?.toISOString() ?? null,
       });
     } catch {
-      // Mutation error is rendered below.
+      /*
+       * The mutation error is received through the
+       * error prop and rendered below.
+       */
     }
   }
 
@@ -230,9 +226,10 @@ export function TaskFormDialog({
               aria-label="Close task dialog"
               disabled={isPending}
               onClick={onClose}
-              className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-400 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+              className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-400 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               <svg
+                aria-hidden="true"
                 viewBox="0 0 20 20"
                 className="h-5 w-5"
                 fill="none"
@@ -246,7 +243,9 @@ export function TaskFormDialog({
         </div>
 
         <form
-          onSubmit={(event) => void handleSubmit(event)}
+          onSubmit={(event) => {
+            void handleSubmit(event);
+          }}
           className="space-y-5 p-6 sm:p-8"
         >
           <div>
@@ -265,15 +264,17 @@ export function TaskFormDialog({
               onChange={(event) => {
                 setTitle(event.target.value);
 
-                if (errors.title) {
-                  setErrors((current) => ({
-                    ...current,
-                    title: undefined,
-                  }));
-                }
+                clearFieldError("title");
               }}
               placeholder="For example: Build authentication page"
-              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className={[
+                "mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm outline-none transition",
+                "placeholder:text-slate-400 focus:bg-white focus:ring-4",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+                errors.title
+                  ? "border-rose-300 focus:border-rose-400 focus:ring-rose-100"
+                  : "border-slate-200 focus:border-violet-400 focus:ring-violet-100",
+              ].join(" ")}
             />
 
             {errors.title && (
@@ -296,16 +297,11 @@ export function TaskFormDialog({
               value={description}
               disabled={isPending}
               error={errors.description}
-              maxLength={5000}
+              maxLength={5_000}
               onChange={(nextDescription) => {
                 setDescription(nextDescription);
 
-                if (errors.description) {
-                  setErrors((current) => ({
-                    ...current,
-                    description: undefined,
-                  }));
-                }
+                clearFieldError("description");
               }}
             />
 
@@ -319,27 +315,46 @@ export function TaskFormDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label
-                htmlFor="task-status"
+                htmlFor="task-column"
                 className="text-sm font-semibold text-slate-800"
               >
-                Status
+                Column
               </label>
 
               <select
-                id="task-status"
-                value={status}
-                disabled={isPending}
-                onChange={(event) =>
-                  setStatus(event.target.value as TaskStatus)
-                }
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+                id="task-column"
+                value={columnId}
+                disabled={isPending || columns.length === 0}
+                onChange={(event) => {
+                  setColumnId(event.target.value);
+
+                  clearFieldError("columnId");
+                }}
+                className={[
+                  "mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition",
+                  "focus:bg-white focus:ring-4 disabled:cursor-not-allowed disabled:opacity-60",
+                  errors.columnId
+                    ? "border-rose-300 focus:border-rose-400 focus:ring-rose-100"
+                    : "border-slate-200 focus:border-violet-400 focus:ring-violet-100",
+                ].join(" ")}
               >
-                {taskStatuses.map((taskStatus) => (
-                  <option key={taskStatus} value={taskStatus}>
-                    {taskStatusLabels[taskStatus]}
+                {columns.length === 0 && (
+                  <option value="">No columns available</option>
+                )}
+
+                {columns.map((column) => (
+                  <option key={column.id} value={column.id}>
+                    {column.name}
+                    {column.kind === "done" ? " · completes task" : ""}
                   </option>
                 ))}
               </select>
+
+              {errors.columnId && (
+                <p className="mt-2 text-xs font-medium text-rose-600">
+                  {errors.columnId}
+                </p>
+              )}
             </div>
 
             <div>
@@ -354,9 +369,9 @@ export function TaskFormDialog({
                 id="task-priority"
                 value={priority}
                 disabled={isPending}
-                onChange={(event) =>
-                  setPriority(event.target.value as TaskPriority)
-                }
+                onChange={(event) => {
+                  setPriority(event.target.value as TaskPriority);
+                }}
                 className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {taskPriorities.map((taskPriority) => (
@@ -379,7 +394,9 @@ export function TaskFormDialog({
                 id="task-assignee"
                 value={assigneeMemberId}
                 disabled={isPending}
-                onChange={(event) => setAssigneeMemberId(event.target.value)}
+                onChange={(event) => {
+                  setAssigneeMemberId(event.target.value);
+                }}
                 className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <option value="">Unassigned</option>
@@ -391,7 +408,8 @@ export function TaskFormDialog({
                 ))}
               </select>
             </div>
-            <div className="sm:col-span-2">
+
+            <div>
               <div className="flex items-center justify-between gap-3">
                 <label
                   htmlFor="task-due-at"
@@ -408,7 +426,7 @@ export function TaskFormDialog({
               <div className="relative mt-2">
                 <DatePicker
                   id="task-due-at"
-                  selected={selectedDueAt}
+                  selected={dueAt}
                   disabled={isPending}
                   showTimeSelect
                   withPortal
@@ -425,24 +443,9 @@ export function TaskFormDialog({
                     errors.dueAt ? "task-date-time-input-invalid" : "",
                   ].join(" ")}
                   onChange={(value: Date | null) => {
-                    if (value) {
-                      const nextDueAt = toLocalDueDateParts(
-                        value.toISOString(),
-                      );
+                    setDueAt(value);
 
-                      setDueDate(nextDueAt.date);
-                      setDueTime(nextDueAt.time);
-                    } else {
-                      setDueDate("");
-                      setDueTime("");
-                    }
-
-                    if (errors.dueAt) {
-                      setErrors((current) => ({
-                        ...current,
-                        dueAt: undefined,
-                      }));
-                    }
+                    clearFieldError("dueAt");
                   }}
                 />
 
@@ -464,24 +467,19 @@ export function TaskFormDialog({
 
               <div className="mt-2 flex items-start justify-between gap-4">
                 <p className="text-[11px] leading-4 text-slate-400">
-                  Uses your local timezone. The assignee will receive an email
+                  Uses your local timezone. The assignee receives an email
                   reminder before this time.
                 </p>
 
-                {(dueDate || dueTime) && (
+                {dueAt !== null && (
                   <button
                     type="button"
                     disabled={isPending}
                     onClick={() => {
-                      setDueDate("");
-                      setDueTime("");
-
-                      setErrors((current) => ({
-                        ...current,
-                        dueAt: undefined,
-                      }));
+                      setDueAt(null);
+                      clearFieldError("dueAt");
                     }}
-                    className="shrink-0 text-xs font-semibold text-slate-500 transition hover:text-rose-600 disabled:opacity-50"
+                    className="shrink-0 text-xs font-semibold text-slate-500 transition hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Clear
                   </button>
@@ -517,7 +515,7 @@ export function TaskFormDialog({
 
             <button
               type="submit"
-              disabled={isPending}
+              disabled={isPending || columns.length === 0}
               className="inline-flex min-w-36 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-200 transition hover:-translate-y-0.5 hover:bg-violet-700 disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-60"
             >
               {isPending && (

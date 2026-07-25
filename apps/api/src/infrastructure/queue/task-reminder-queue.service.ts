@@ -148,7 +148,7 @@ export class TaskReminderQueueService {
 
   private isSchedulable(task: Task): boolean {
     return (
-      task.status !== 'done' &&
+      task.completedAt === null &&
       task.assigneeMemberId !== null &&
       task.dueAt !== null &&
       task.dueAt.getTime() > Date.now()

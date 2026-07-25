@@ -16,20 +16,18 @@ import type {
   Task,
   TaskFormValues,
   TaskPriority,
-  TaskStatus,
 } from "../../tasks/task.types";
 import {
   taskPriorities,
   taskPriorityLabels,
   taskStatuses,
-  taskStatusLabels,
 } from "../../tasks/task.types";
 import { useWorkspaceQuery } from "../../workspaces/hooks/use-workspaces";
 import { getWorkspaceErrorMessage } from "../../workspaces/workspace-api";
 import { useProjectQuery } from "../hooks/use-projects";
 import { isProjectArchived } from "../project.types";
 import { TaskBoard } from "../../tasks/components/task-board";
-
+import { useProjectColumnsQuery } from "../../project-columns/hooks/use-project-columns";
 type TaskDialogState =
   | {
       mode: "create";
@@ -94,22 +92,20 @@ export function ProjectOverviewPage(): React.JSX.Element {
   const deleteTaskMutation = useDeleteTaskMutation();
 
   const moveTaskMutation = useMoveTaskMutation();
+  const columnsQuery = useProjectColumnsQuery(workspaceId, projectId);
+  const tasksByColumn = useMemo(() => {
+    const grouped: Record<string, Task[]> = {};
 
-  const tasksByStatus = useMemo(() => {
-    const grouped: Record<TaskStatus, Task[]> = {
-      backlog: [],
-      todo: [],
-      in_progress: [],
-      in_review: [],
-      done: [],
-    };
+    for (const column of columnsQuery.data ?? []) {
+      grouped[column.id] = [];
+    }
 
     for (const task of tasksQuery.data ?? []) {
-      grouped[task.status].push(task);
+      grouped[task.columnId]?.push(task);
     }
 
     return grouped;
-  }, [tasksQuery.data]);
+  }, [columnsQuery.data, tasksQuery.data]);
 
   if (
     projectQuery.isLoading ||
@@ -204,7 +200,7 @@ export function ProjectOverviewPage(): React.JSX.Element {
         input: {
           title: values.title,
           description: values.description || undefined,
-          status: values.status,
+          columnId: values.columnId,
           priority: values.priority,
           assigneeMemberId: values.assigneeMemberId ?? undefined,
           dueAt: values.dueAt ?? undefined,
@@ -220,7 +216,7 @@ export function ProjectOverviewPage(): React.JSX.Element {
         input: {
           title: values.title,
           description: values.description || null,
-          status: values.status,
+          columnId: values.columnId,
           priority: values.priority,
           assigneeMemberId: values.assigneeMemberId,
           dueAt: values.dueAt,
@@ -233,29 +229,30 @@ export function ProjectOverviewPage(): React.JSX.Element {
     setDialogState(null);
   }
 
-  async function changeTaskStatus(
-    task: Task,
-    status: TaskStatus,
-  ): Promise<void> {
+  async function changeTaskColumn(task: Task, columnId: string): Promise<void> {
     if (!workspaceId || !projectId) {
       return;
     }
+
+    const destination = columnsQuery.data?.find(
+      (column) => column.id === columnId,
+    );
 
     try {
       await moveTaskMutation.mutateAsync({
         workspaceId,
         projectId,
         task,
-        status,
+        columnId,
       });
 
       setSuccessMessage(
-        `${project.key}-${task.taskNumber} moved to ${taskStatusLabels[
-          status
-        ].toLowerCase()}.`,
+        `${project.key}-${task.taskNumber} moved to ${
+          destination?.name ?? "another column"
+        }.`,
       );
     } catch {
-      // Optimistic state is automatically rolled back.
+      // Optimistic update is rolled back by the mutation hook.
     }
   }
 
@@ -458,7 +455,8 @@ export function ProjectOverviewPage(): React.JSX.Element {
       </div>
 
       <TaskBoard
-        tasksByStatus={tasksByStatus}
+        columns={columnsQuery.data ?? []}
+        tasksByColumn={tasksByColumn}
         projectKey={project.key}
         members={members}
         isArchived={archived}
@@ -473,8 +471,8 @@ export function ProjectOverviewPage(): React.JSX.Element {
           });
         }}
         onDelete={setTaskToDelete}
-        onStatusChange={(selectedTask, status) => {
-          void changeTaskStatus(selectedTask, status);
+        onColumnChange={(selectedTask, columnId) => {
+          void changeTaskColumn(selectedTask, columnId);
         }}
       />
       {(tasksQuery.data ?? []).length === 0 &&
@@ -517,6 +515,7 @@ export function ProjectOverviewPage(): React.JSX.Element {
             dialogState.mode === "create" ? "create-task" : dialogState.task.id
           }
           task={dialogState.mode === "edit" ? dialogState.task : undefined}
+          columns={columnsQuery.data ?? []}
           members={members}
           isPending={
             createTaskMutation.isPending || updateTaskMutation.isPending

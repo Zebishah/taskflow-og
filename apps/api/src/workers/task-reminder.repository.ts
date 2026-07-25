@@ -17,7 +17,7 @@ export interface TaskReminderContext {
   projectId: string;
   title: string;
   taskNumber: number;
-  status: 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done';
+  status?: 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done';
   dueAt: Date | null;
   assigneeMemberId: string | null;
   projectName: string;
@@ -48,7 +48,7 @@ export class TaskReminderRepository {
         projectId: tasks.projectId,
         title: tasks.title,
         taskNumber: tasks.taskNumber,
-        status: tasks.status,
+        columnId: tasks.columnId,
         dueAt: tasks.dueAt,
         assigneeMemberId: tasks.assigneeMemberId,
         projectName: projects.name,

@@ -13,10 +13,6 @@ import {
   taskPriorityValues,
   type TaskPriority,
 } from '../../../database/schema/task-priority.enum';
-import {
-  taskStatusValues,
-  type TaskStatus,
-} from '../../../database/schema/task-status.enum';
 
 export class CreateTaskDto {
   @Transform(({ value }: { value: unknown }) =>
@@ -35,8 +31,8 @@ export class CreateTaskDto {
   public description?: string;
 
   @IsOptional()
-  @IsIn(taskStatusValues)
-  public status?: TaskStatus;
+  @IsUUID('4')
+  public columnId?: string;
 
   @IsOptional()
   @IsIn(taskPriorityValues)

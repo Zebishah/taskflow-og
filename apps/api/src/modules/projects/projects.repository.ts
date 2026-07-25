@@ -3,8 +3,9 @@ import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm';
 
 import { DATABASE } from '../../database/database.constants';
 import type { Database } from '../../database/database.types';
-import { projects, type Project } from '../../database/schema';
+import { projectColumns, projects, type Project } from '../../database/schema';
 
+import { DEFAULT_PROJECT_COLUMNS } from './project-columns.constants';
 interface CreateProjectInput {
   workspaceId: string;
   createdByUserId: string;
@@ -27,22 +28,34 @@ export class ProjectsRepository {
   ) {}
 
   public async create(input: CreateProjectInput): Promise<Project> {
-    const [project] = await this.database
-      .insert(projects)
-      .values({
-        workspaceId: input.workspaceId,
-        createdByUserId: input.createdByUserId,
-        name: input.name,
-        key: input.key,
-        description: input.description,
-      })
-      .returning();
+    return this.database.transaction(async (transaction) => {
+      const [project] = await transaction
+        .insert(projects)
+        .values({
+          workspaceId: input.workspaceId,
+          createdByUserId: input.createdByUserId,
+          name: input.name,
+          key: input.key,
+          description: input.description,
+        })
+        .returning();
 
-    if (!project) {
-      throw new Error('Project creation returned no record');
-    }
+      if (!project) {
+        throw new Error('Project creation returned no record');
+      }
 
-    return project;
+      await transaction.insert(projectColumns).values(
+        DEFAULT_PROJECT_COLUMNS.map((column) => ({
+          projectId: project.id,
+          name: column.name,
+          color: column.color,
+          kind: column.kind,
+          position: column.position,
+        })),
+      );
+
+      return project;
+    });
   }
 
   public async findAll(workspaceId: string): Promise<Project[]> {

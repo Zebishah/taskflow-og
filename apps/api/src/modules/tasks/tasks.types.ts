@@ -1,21 +1,22 @@
-import type { TaskPriority, TaskStatus } from '../../database/schema';
+import type { TaskPriority } from '../../database/schema';
 
 export interface CreateTaskRepositoryInput {
   workspaceId: string;
   projectId: string;
   createdByUserId: string;
   assigneeMemberId: string | null;
+  columnId: string;
   title: string;
   description: string | null;
-  status: TaskStatus;
   priority: TaskPriority;
   dueAt: Date | null;
+  completedAt: Date | null;
 }
 
 export interface UpdateTaskRepositoryInput {
   title?: string;
   description?: string | null;
-  status?: TaskStatus;
+  columnId?: string;
   priority?: TaskPriority;
   assigneeMemberId?: string | null;
   dueAt?: Date | null;
@@ -23,7 +24,7 @@ export interface UpdateTaskRepositoryInput {
 }
 
 export interface TaskFilters {
-  status?: TaskStatus;
+  columnId?: string;
   priority?: TaskPriority;
   assigneeMemberId?: string;
   search?: string;
