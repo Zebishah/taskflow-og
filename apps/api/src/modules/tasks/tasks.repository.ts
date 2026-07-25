@@ -4,12 +4,12 @@ import { and, asc, eq, ilike, isNull, sql, type SQL } from 'drizzle-orm';
 import { DATABASE } from '../../database/database.constants';
 import type { Database } from '../../database/database.types';
 import {
-  ProjectColumn,
   projectColumns,
   projects,
   tasks,
   workspaceMembers,
   type Project,
+  type ProjectColumn,
   type Task,
 } from '../../database/schema';
 import type {

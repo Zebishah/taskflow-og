@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, count, eq, max, not, sql } from 'drizzle-orm';
+import { and, asc, count, eq, max, ne, not, SQL, sql } from 'drizzle-orm';
 
 import { DATABASE } from '../../database/database.constants';
 import type { Database } from '../../database/database.types';
@@ -10,14 +10,6 @@ import {
   type ProjectColumnColor,
   type ProjectColumnKind,
 } from '../../database/schema';
-
-interface CreateColumnInput {
-  projectId: string;
-  name: string;
-  color: ProjectColumnColor;
-  kind: ProjectColumnKind;
-  position: number;
-}
 
 export interface CreateProjectColumnRepositoryInput {
   projectId: string;
@@ -70,13 +62,18 @@ export class ProjectColumnsRepository {
     name: string,
     excludedColumnId?: string,
   ): Promise<ProjectColumn | null> {
-    const conditions = [
+    const conditions: SQL[] = [
       eq(projectColumns.projectId, projectId),
-      sql`lower(${projectColumns.name}) = lower(${name})`,
+
+      sql`
+      lower(${projectColumns.name})
+      =
+      lower(${name})
+    `,
     ];
 
-    if (excludedColumnId) {
-      conditions.push(not(eq(projectColumns.id, excludedColumnId)));
+    if (excludedColumnId !== undefined) {
+      conditions.push(ne(projectColumns.id, excludedColumnId));
     }
 
     const [column] = await this.database
@@ -160,7 +157,9 @@ export class ProjectColumnsRepository {
     return result?.value ?? 0;
   }
 
-  public async create(input: CreateColumnInput): Promise<ProjectColumn> {
+  public async create(
+    input: CreateProjectColumnRepositoryInput,
+  ): Promise<ProjectColumn> {
     const [column] = await this.database
       .insert(projectColumns)
       .values(input)

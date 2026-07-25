@@ -14,7 +14,10 @@ import type { WorkspaceMembershipContext } from '../workspaces/workspaces.types'
 import type { CreateProjectColumnDto } from './dto/project-columns/create-project-column.dto';
 import type { ReorderProjectColumnsDto } from './dto/project-columns/reorder-project-columns.dto';
 import type { UpdateProjectColumnDto } from './dto/project-columns/update-project-column.dto';
-import { ProjectColumnsRepository } from './project-columns.repository';
+import {
+  ProjectColumnsRepository,
+  UpdateProjectColumnRepositoryInput,
+} from './project-columns.repository';
 import { ProjectsRepository } from './projects.repository';
 
 @Injectable()
@@ -118,12 +121,51 @@ export class ProjectColumnsService {
         );
       }
     }
+    const updateData: UpdateProjectColumnRepositoryInput = {};
 
-    const updated = await this.repository.update(projectId, columnId, {
-      name: dto.name?.trim(),
-      color: dto.color,
-      kind: dto.kind,
-    });
+    if (dto.name !== undefined) {
+      const normalizedName = dto.name.trim();
+
+      const duplicate = await this.repository.findByName(
+        projectId,
+        normalizedName,
+        columnId,
+      );
+
+      if (duplicate) {
+        throw new ConflictException('A column with this name already exists');
+      }
+
+      updateData.name = normalizedName;
+    }
+
+    if (dto.color !== undefined) {
+      updateData.color = dto.color;
+    }
+
+    if (dto.kind !== undefined) {
+      if (column.kind === 'done' && dto.kind !== 'done') {
+        const doneCount = await this.repository.countDoneColumns(projectId);
+
+        if (doneCount <= 1) {
+          throw new ConflictException(
+            'Every project must have at least one completion column',
+          );
+        }
+      }
+
+      updateData.kind = dto.kind;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return column;
+    }
+
+    const updated = await this.repository.update(
+      projectId,
+      columnId,
+      updateData,
+    );
 
     if (!updated) {
       throw new NotFoundException('Column was not found');

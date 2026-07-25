@@ -17,11 +17,8 @@ import type {
   TaskFormValues,
   TaskPriority,
 } from "../../tasks/task.types";
-import {
-  taskPriorities,
-  taskPriorityLabels,
-  taskStatuses,
-} from "../../tasks/task.types";
+import { taskPriorities, taskPriorityLabels } from "../../tasks/task.types";
+import { WorkflowEditorDialog } from "../../project-columns/components/workflow-editor-dialog";
 import { useWorkspaceQuery } from "../../workspaces/hooks/use-workspaces";
 import { getWorkspaceErrorMessage } from "../../workspaces/workspace-api";
 import { useProjectQuery } from "../hooks/use-projects";
@@ -57,6 +54,7 @@ export function ProjectOverviewPage(): React.JSX.Element {
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | "all">(
     "all",
   );
+  const [isWorkflowEditorOpen, setWorkflowEditorOpen] = useState(false);
 
   const [assigneeFilter, setAssigneeFilter] = useState("all");
 
@@ -111,7 +109,8 @@ export function ProjectOverviewPage(): React.JSX.Element {
     projectQuery.isLoading ||
     workspaceQuery.isLoading ||
     membersQuery.isLoading ||
-    tasksQuery.isLoading
+    tasksQuery.isLoading ||
+    columnsQuery.isLoading
   ) {
     return (
       <div className="animate-pulse">
@@ -120,9 +119,14 @@ export function ProjectOverviewPage(): React.JSX.Element {
         <div className="mt-7 h-20 rounded-[24px] bg-white" />
 
         <div className="mt-5 grid gap-4 xl:grid-cols-5">
-          {taskStatuses.map((status) => (
-            <div key={status} className="h-80 rounded-[24px] bg-white" />
-          ))}
+          {Array.from(
+            {
+              length: 5,
+            },
+            (_, index) => (
+              <div key={index} className="h-80 rounded-[24px] bg-white" />
+            ),
+          )}
         </div>
       </div>
     );
@@ -132,7 +136,8 @@ export function ProjectOverviewPage(): React.JSX.Element {
     projectQuery.error ??
     workspaceQuery.error ??
     membersQuery.error ??
-    tasksQuery.error;
+    tasksQuery.error ??
+    columnsQuery.error;
 
   if (
     !workspaceId ||
@@ -142,7 +147,9 @@ export function ProjectOverviewPage(): React.JSX.Element {
     workspaceQuery.isError ||
     !workspaceQuery.data ||
     membersQuery.isError ||
-    tasksQuery.isError
+    tasksQuery.isError ||
+    columnsQuery.isError ||
+    !columnsQuery.data
   ) {
     return (
       <div className="rounded-[28px] border border-rose-200 bg-white p-8 text-center">
@@ -170,7 +177,10 @@ export function ProjectOverviewPage(): React.JSX.Element {
 
   const archived = isProjectArchived(project);
 
-  const canDelete = workspace.role === "owner" || workspace.role === "admin";
+  const canManageProject =
+    workspace.role === "owner" || workspace.role === "admin";
+
+  const canDelete = canManageProject;
 
   const taskMutationError =
     createTaskMutation.error ??
@@ -330,22 +340,54 @@ export function ProjectOverviewPage(): React.JSX.Element {
             </div>
           </div>
 
-          <button
-            type="button"
-            disabled={archived}
-            onClick={() => {
-              setSuccessMessage(null);
-              createTaskMutation.reset();
-              setDialogState({
-                mode: "create",
-              });
-            }}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-sm font-semibold text-slate-950 shadow-xl shadow-black/20 transition hover:-translate-y-0.5 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-700 disabled:text-slate-400"
-          >
-            <span className="text-lg">+</span>
+          <div className="flex shrink-0 flex-wrap gap-3">
+            {canManageProject && (
+              <button
+                type="button"
+                disabled={archived}
+                onClick={() => {
+                  setWorkflowEditorOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-5 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15 disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-45"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  className="h-4 w-4"
+                >
+                  <path d="M3 5h14M3 10h14M3 15h14" />
 
-            {archived ? "Project archived" : "Create task"}
-          </button>
+                  <circle cx="7" cy="5" r="1.5" fill="currentColor" />
+
+                  <circle cx="13" cy="10" r="1.5" fill="currentColor" />
+
+                  <circle cx="9" cy="15" r="1.5" fill="currentColor" />
+                </svg>
+                Manage workflow
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={archived}
+              onClick={() => {
+                setSuccessMessage(null);
+                createTaskMutation.reset();
+
+                setDialogState({
+                  mode: "create",
+                });
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-sm font-semibold text-slate-950 shadow-xl shadow-black/20 transition hover:-translate-y-0.5 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-700 disabled:text-slate-400"
+            >
+              <span className="text-lg">+</span>
+
+              {archived ? "Project archived" : "Create task"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -533,7 +575,17 @@ export function ProjectOverviewPage(): React.JSX.Element {
           }}
         />
       )}
-
+      {isWorkflowEditorOpen && canManageProject && (
+        <WorkflowEditorDialog
+          workspaceId={workspaceId}
+          projectId={projectId}
+          columns={columnsQuery.data}
+          tasks={tasksQuery.data ?? []}
+          onClose={() => {
+            setWorkflowEditorOpen(false);
+          }}
+        />
+      )}
       <ConfirmationDialog
         isOpen={taskToDelete !== null}
         title="Delete this task?"
