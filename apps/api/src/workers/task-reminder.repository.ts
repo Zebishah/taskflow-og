@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants';
 import type { Database } from '../database/database.types';
 import {
+  projectColumns,
   projects,
   tasks,
   users,
@@ -17,7 +18,10 @@ export interface TaskReminderContext {
   projectId: string;
   title: string;
   taskNumber: number;
-  status?: 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done';
+  status?: string;
+  columnId: string;
+  columnKind: 'backlog' | 'active' | 'done';
+  completedAt: Date | null;
   dueAt: Date | null;
   assigneeMemberId: string | null;
   projectName: string;
@@ -50,6 +54,8 @@ export class TaskReminderRepository {
         taskNumber: tasks.taskNumber,
         columnId: tasks.columnId,
         dueAt: tasks.dueAt,
+        columnKind: projectColumns.kind,
+        completedAt: tasks.completedAt,
         assigneeMemberId: tasks.assigneeMemberId,
         projectName: projects.name,
         projectKey: projects.key,
@@ -60,6 +66,13 @@ export class TaskReminderRepository {
         recipientStatus: users.status,
       })
       .from(tasks)
+      .innerJoin(
+        projectColumns,
+        and(
+          eq(projectColumns.id, tasks.columnId),
+          eq(projectColumns.projectId, tasks.projectId),
+        ),
+      )
       .innerJoin(
         projects,
         and(
