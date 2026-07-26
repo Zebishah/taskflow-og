@@ -120,19 +120,38 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
             label: "Members",
             value: workspace.memberCount,
             helper: "People collaborating here",
-            gradient: "from-violet-500 to-indigo-500",
+            iconColor: "bg-violet-100 text-violet-600",
+            icon: (
+              <>
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+              </>
+            ),
           },
           {
             label: "Active projects",
             value: projectsQuery.isLoading ? "—" : activeProjectCount,
             helper: "Projects currently in progress",
-            gradient: "from-cyan-500 to-blue-500",
+            iconColor: "bg-cyan-100 text-cyan-600",
+            icon: (
+              <>
+                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5Z" />
+                <path d="m9.5 13 1.75 1.75L15 11" />
+              </>
+            ),
           },
           {
             label: "Your role",
             value: workspace.role[0]?.toUpperCase() + workspace.role.slice(1),
             helper: "Workspace permission level",
-            gradient: "from-emerald-500 to-teal-500",
+            iconColor: "bg-emerald-100 text-emerald-600",
+            icon: (
+              <>
+                <path d="M12 3 5 6v5c0 4.55 2.98 8.74 7 10 4.02-1.26 7-5.45 7-10V6Z" />
+                <path d="m9 12 2 2 4-4" />
+              </>
+            ),
           },
         ].map((stat, index) => (
           <article
@@ -143,8 +162,21 @@ export function WorkspaceOverviewPage(): React.JSX.Element {
             className="group relative overflow-hidden rounded-[26px] border border-slate-200 bg-white p-6 opacity-0 shadow-sm animate-[fade-up_.55s_ease-out_forwards] transition duration-300 hover:-translate-y-1 hover:shadow-xl"
           >
             <span
-              className={`absolute right-5 top-5 h-11 w-11 rounded-2xl bg-gradient-to-br ${stat.gradient} opacity-15 transition group-hover:scale-125 group-hover:opacity-25`}
-            />
+              className={`absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-2xl ${stat.iconColor} transition duration-300 group-hover:scale-110`}
+              aria-hidden="true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {stat.icon}
+              </svg>
+            </span>
 
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
               {stat.label}

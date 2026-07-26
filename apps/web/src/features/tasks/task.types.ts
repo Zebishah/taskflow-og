@@ -27,6 +27,10 @@ export interface Task {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  imageKey: string | null;
+  imageOriginalName: string | null;
+  imageContentType: string | null;
+  imageSizeBytes: number | null;
 }
 export interface CreateTaskInput {
   title: string;
@@ -51,6 +55,7 @@ export interface TaskFilters {
   priority?: TaskPriority;
   assigneeMemberId?: string;
   search?: string;
+  columnId?: string;
 }
 
 export interface TaskFormValues {
@@ -60,6 +65,7 @@ export interface TaskFormValues {
   priority: TaskPriority;
   assigneeMemberId: string | null;
   dueAt: string | null;
+  imageFile: File | null;
 }
 
 export const taskStatusLabels: Record<TaskStatus, string> = {

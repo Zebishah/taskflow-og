@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import DatePicker from "react-datepicker";
 
 import "react-datepicker/dist/react-datepicker.css";
@@ -10,7 +10,11 @@ import { getWorkspaceErrorMessage } from "../../workspaces/workspace-api";
 import type { Task, TaskFormValues, TaskPriority } from "../task.types";
 import { taskPriorities, taskPriorityLabels } from "../task.types";
 import { RichTextEditor } from "./rich-text-editor";
-
+import { TaskImageManager } from "./task-image-manager";
+import {
+  allowedTaskImageTypes,
+  maximumTaskImageBytes,
+} from "../task-image.types";
 interface TaskFormDialogProps {
   task?: Task;
   columns: ProjectColumn[];
@@ -26,6 +30,7 @@ interface FormErrors {
   description?: string;
   columnId?: string;
   dueAt?: string;
+  imageFile?: string;
 }
 
 function getInitialColumnId(
@@ -61,7 +66,11 @@ function parseDueAt(value: string | null | undefined): Date | null {
 
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 }
+type AllowedTaskImageType = (typeof allowedTaskImageTypes)[number];
 
+function isAllowedTaskImageType(value: string): value is AllowedTaskImageType {
+  return allowedTaskImageTypes.some((contentType) => contentType === value);
+}
 export function TaskFormDialog({
   task,
   columns,
@@ -97,7 +106,9 @@ export function TaskFormDialog({
   const [dueAt, setDueAt] = useState<Date | null>(() =>
     parseDueAt(task?.dueAt),
   );
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
 
   const isEditing = task !== undefined;
@@ -141,7 +152,13 @@ export function TaskFormDialog({
     if (dueAt !== null && Number.isNaN(dueAt.getTime())) {
       nextErrors.dueAt = "Enter a valid due date and time.";
     }
-
+    if (imageFile !== null) {
+      if (!isAllowedTaskImageType(imageFile.type)) {
+        nextErrors.imageFile = "Select a JPEG, PNG or WebP image.";
+      } else if (imageFile.size > maximumTaskImageBytes) {
+        nextErrors.imageFile = "Task images must be 5 MB or smaller.";
+      }
+    }
     setErrors(nextErrors);
 
     return Object.keys(nextErrors).length === 0;
@@ -165,11 +182,16 @@ export function TaskFormDialog({
         assigneeMemberId: assigneeMemberId || null,
 
         /*
-         * React DatePicker returns local browser time.
-         * toISOString converts that exact moment to UTC
-         * for PostgreSQL and the backend.
+         * Convert the browser-local date and time into
+         * an exact UTC timestamp for the API.
          */
         dueAt: dueAt?.toISOString() ?? null,
+
+        /*
+         * This stays in frontend memory. It is not sent
+         * through the normal JSON task-creation request.
+         */
+        imageFile,
       });
     } catch {
       /*
@@ -178,7 +200,40 @@ export function TaskFormDialog({
        */
     }
   }
+  function handleImageSelection(event: ChangeEvent<HTMLInputElement>): void {
+    const selectedFile = event.target.files?.[0];
 
+    if (!selectedFile) {
+      return;
+    }
+
+    if (!isAllowedTaskImageType(selectedFile.type)) {
+      setImageFile(null);
+
+      setErrors((current) => ({
+        ...current,
+        imageFile: "Select a JPEG, PNG or WebP image.",
+      }));
+
+      event.target.value = "";
+      return;
+    }
+
+    if (selectedFile.size > maximumTaskImageBytes) {
+      setImageFile(null);
+
+      setErrors((current) => ({
+        ...current,
+        imageFile: "Task images must be 5 MB or smaller.",
+      }));
+
+      event.target.value = "";
+      return;
+    }
+
+    setImageFile(selectedFile);
+    clearFieldError("imageFile");
+  }
   return (
     <div
       role="presentation"
@@ -311,7 +366,77 @@ export function TaskFormDialog({
               </p>
             )}
           </div>
+          {task !== undefined ? (
+            <TaskImageManager task={task} />
+          ) : (
+            <section className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Task cover image
+                  </p>
 
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Optional. JPEG, PNG or WebP, up to 5 MB.
+                  </p>
+                </div>
+
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={isPending}
+                  onChange={handleImageSelection}
+                  className="sr-only"
+                />
+
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => imageInputRef.current?.click()}
+                  className="shrink-0 rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-xs font-semibold text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {imageFile ? "Change image" : "Choose image"}
+                </button>
+              </div>
+
+              {imageFile !== null && (
+                <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-emerald-800">
+                      {imageFile.name}
+                    </p>
+
+                    <p className="mt-1 text-[11px] text-emerald-600">
+                      {(imageFile.size / 1_024 / 1_024).toFixed(2)} MB
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => {
+                      setImageFile(null);
+                      clearFieldError("imageFile");
+
+                      if (imageInputRef.current) {
+                        imageInputRef.current.value = "";
+                      }
+                    }}
+                    className="text-xs font-semibold text-rose-600 transition hover:text-rose-700 disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+
+              {errors.imageFile && (
+                <p className="mt-2 text-xs font-medium text-rose-600">
+                  {errors.imageFile}
+                </p>
+              )}
+            </section>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label

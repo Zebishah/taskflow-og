@@ -19,6 +19,7 @@ import type { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import type { UpdateTaskDto } from './dto/update-task.dto';
 import { TasksRepository } from './tasks.repository';
 import type { UpdateTaskRepositoryInput } from './tasks.types';
+import { TaskImagesService } from './task-images.service';
 
 @Injectable()
 export class TasksService {
@@ -27,6 +28,7 @@ export class TasksService {
   public constructor(
     private readonly tasksRepository: TasksRepository,
     private readonly taskReminderQueueService: TaskReminderQueueService,
+    private readonly taskImagesService: TaskImagesService,
   ) {}
 
   public async create(
@@ -248,14 +250,9 @@ export class TasksService {
       throw new NotFoundException('Task was not found');
     }
 
-    /*
-     * Cancel the reminder after successful deletion.
-     *
-     * The previous implementation cancelled the reminder
-     * before deleting the task. If deletion failed, the
-     * task would incorrectly remain without a reminder.
-     */
     await this.reconcileReminderSafely(existingTask, null);
+
+    await this.taskImagesService.deleteObjectSafely(existingTask.imageKey);
   }
 
   private async findProjectOrFail(

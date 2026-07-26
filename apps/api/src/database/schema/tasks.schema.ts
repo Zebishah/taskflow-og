@@ -94,13 +94,29 @@ export const tasks = pgTable(
     })
       .defaultNow()
       .notNull(),
+    imageKey: varchar('image_key', {
+      length: 1_024,
+    }),
+
+    imageOriginalName: varchar('image_original_name', {
+      length: 255,
+    }),
+
+    imageContentType: varchar('image_content_type', {
+      length: 100,
+    }),
+
+    imageSizeBytes: integer('image_size_bytes'),
   },
   (table) => [
     uniqueIndex('tasks_project_task_number_unique_index').on(
       table.projectId,
       table.taskNumber,
     ),
-
+    check(
+      'tasks_image_size_positive_check',
+      sql`${table.imageSizeBytes} IS NULL OR ${table.imageSizeBytes} > 0`,
+    ),
     check('tasks_task_number_positive_check', sql`${table.taskNumber} > 0`),
 
     check('tasks_position_non_negative_check', sql`${table.position} >= 0`),

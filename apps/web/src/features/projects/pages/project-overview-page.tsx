@@ -25,6 +25,7 @@ import { useProjectQuery } from "../hooks/use-projects";
 import { isProjectArchived } from "../project.types";
 import { TaskBoard } from "../../tasks/components/task-board";
 import { useProjectColumnsQuery } from "../../project-columns/hooks/use-project-columns";
+import { useUploadTaskImageMutation } from "../../tasks/hooks/use-task-image";
 type TaskDialogState =
   | {
       mode: "create";
@@ -90,6 +91,7 @@ export function ProjectOverviewPage(): React.JSX.Element {
   const deleteTaskMutation = useDeleteTaskMutation();
 
   const moveTaskMutation = useMoveTaskMutation();
+  const uploadTaskImageMutation = useUploadTaskImageMutation();
   const columnsQuery = useProjectColumnsQuery(workspaceId, projectId);
   const tasksByColumn = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
@@ -185,12 +187,14 @@ export function ProjectOverviewPage(): React.JSX.Element {
   const taskMutationError =
     createTaskMutation.error ??
     updateTaskMutation.error ??
+    uploadTaskImageMutation.error ??
     moveTaskMutation.error ??
     deleteTaskMutation.error;
 
   const isMutating =
     createTaskMutation.isPending ||
     updateTaskMutation.isPending ||
+    uploadTaskImageMutation.isPending ||
     moveTaskMutation.isPending ||
     deleteTaskMutation.isPending;
 
@@ -204,9 +208,10 @@ export function ProjectOverviewPage(): React.JSX.Element {
     }
 
     if (dialogState.mode === "create") {
-      await createTaskMutation.mutateAsync({
+      const createdTask = await createTaskMutation.mutateAsync({
         workspaceId,
         projectId,
+
         input: {
           title: values.title,
           description: values.description || undefined,
@@ -217,12 +222,34 @@ export function ProjectOverviewPage(): React.JSX.Element {
         },
       });
 
-      setSuccessMessage("Task created successfully.");
+      if (values.imageFile !== null) {
+        try {
+          await uploadTaskImageMutation.mutateAsync({
+            workspaceId,
+            projectId,
+            taskId: createdTask.id,
+            file: values.imageFile,
+          });
+
+          setSuccessMessage("Task and cover image created successfully.");
+        } catch {
+          /*
+           * Keep the successfully created task.
+           * The user can edit it and retry the image upload.
+           */
+          setSuccessMessage(
+            "Task was created, but its image could not be uploaded. Edit the task to try again.",
+          );
+        }
+      } else {
+        setSuccessMessage("Task created successfully.");
+      }
     } else {
       await updateTaskMutation.mutateAsync({
         workspaceId,
         projectId,
         taskId: dialogState.task.id,
+
         input: {
           title: values.title,
           description: values.description || null,
@@ -375,7 +402,9 @@ export function ProjectOverviewPage(): React.JSX.Element {
               disabled={archived}
               onClick={() => {
                 setSuccessMessage(null);
+
                 createTaskMutation.reset();
+                uploadTaskImageMutation.reset();
 
                 setDialogState({
                   mode: "create",
@@ -560,7 +589,9 @@ export function ProjectOverviewPage(): React.JSX.Element {
           columns={columnsQuery.data ?? []}
           members={members}
           isPending={
-            createTaskMutation.isPending || updateTaskMutation.isPending
+            createTaskMutation.isPending ||
+            updateTaskMutation.isPending ||
+            uploadTaskImageMutation.isPending
           }
           error={
             dialogState.mode === "create"

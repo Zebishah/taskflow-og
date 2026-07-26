@@ -16,12 +16,12 @@ interface ApiErrorResponse {
   error?: string;
 }
 
-interface RequestOptions extends Omit<RequestInit, "body"> {
+export interface RequestOptions extends Omit<RequestInit, "body"> {
   accessToken: string;
   body?: unknown;
 }
 
-async function taskRequest<T>(
+export async function taskRequest<T>(
   path: string,
   options: RequestOptions,
 ): Promise<T> {
@@ -74,8 +74,8 @@ async function taskRequest<T>(
 function buildTaskQueryString(filters: TaskFilters): string {
   const searchParameters = new URLSearchParams();
 
-  if (filters.status) {
-    searchParameters.set("status", filters.status);
+  if (filters.columnId) {
+    searchParameters.set("columnId", filters.columnId);
   }
 
   if (filters.priority) {
@@ -95,7 +95,10 @@ function buildTaskQueryString(filters: TaskFilters): string {
   return queryString ? `?${queryString}` : "";
 }
 
-function getTaskBasePath(workspaceId: string, projectId: string): string {
+export function getTaskBasePath(
+  workspaceId: string,
+  projectId: string,
+): string {
   return `/workspaces/${workspaceId}` + `/projects/${projectId}/tasks`;
 }
 
