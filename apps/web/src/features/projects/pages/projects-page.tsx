@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ConfirmationDialog } from "../../../shared/components/confirmation-dialog";
@@ -13,13 +13,20 @@ import {
   useRestoreProjectMutation,
   useUpdateProjectMutation,
 } from "../hooks/use-projects";
-import type {
-  CreateProjectInput,
-  Project,
-  ProjectFilter,
-} from "../project.types";
+import type { CreateProjectInput, Project } from "../project.types";
 import { isProjectArchived } from "../project.types";
+import { useAppDispatch, useAppSelector } from "../../../app/redux-hooks";
 
+import {
+  projectFilterChanged,
+  projectSearchChanged,
+} from "../project-browser.slice";
+
+import {
+  selectProjectFilter,
+  selectProjectSearch,
+  selectVisibleProjects,
+} from "../project-browser.selectors";
 type FormState =
   | {
       mode: "create";
@@ -70,10 +77,6 @@ export function ProjectsPage(): React.JSX.Element {
 
   const restoreMutation = useRestoreProjectMutation();
 
-  const [search, setSearch] = useState("");
-
-  const [filter, setFilter] = useState<ProjectFilter>("active");
-
   const [formState, setFormState] = useState<FormState>(null);
 
   const [action, setAction] = useState<ProjectAction | null>(null);
@@ -81,27 +84,14 @@ export function ProjectsPage(): React.JSX.Element {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const projects = projectsQuery.data ?? [];
+  const dispatch = useAppDispatch();
 
-  const visibleProjects = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+  const search = useAppSelector(selectProjectSearch);
 
-    return projects.filter((project) => {
-      const archived = isProjectArchived(project);
-
-      const matchesFilter =
-        filter === "all" ||
-        (filter === "active" && !archived) ||
-        (filter === "archived" && archived);
-
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        project.name.toLowerCase().includes(normalizedSearch) ||
-        project.key.toLowerCase().includes(normalizedSearch) ||
-        project.description?.toLowerCase().includes(normalizedSearch) === true;
-
-      return matchesFilter && matchesSearch;
-    });
-  }, [projects, search, filter]);
+  const filter = useAppSelector(selectProjectFilter);
+  const visibleProjects = useAppSelector((state) =>
+    selectVisibleProjects(state, projects),
+  );
 
   if (workspaceQuery.isLoading || projectsQuery.isLoading) {
     return <ProjectsSkeleton />;
@@ -299,7 +289,9 @@ export function ProjectsPage(): React.JSX.Element {
             type="search"
             value={search}
             placeholder="Search projects by name, key, or description..."
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) =>
+              dispatch(projectSearchChanged(event.target.value))
+            }
             className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
           />
         </div>
@@ -309,7 +301,7 @@ export function ProjectsPage(): React.JSX.Element {
             <button
               key={item}
               type="button"
-              onClick={() => setFilter(item)}
+              onClick={() => dispatch(projectFilterChanged(item))}
               className={[
                 "rounded-xl px-3 py-2 text-xs font-semibold capitalize transition sm:px-4",
                 filter === item

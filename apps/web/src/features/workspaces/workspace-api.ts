@@ -123,9 +123,64 @@ export async function deleteWorkspace(
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getMessageFromResponseData(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const message = value.message;
+
+  if (typeof message === "string") {
+    return message;
+  }
+
+  if (
+    Array.isArray(message) &&
+    message.every((item): item is string => typeof item === "string")
+  ) {
+    return message.join(". ");
+  }
+
+  return null;
+}
+
 export function getWorkspaceErrorMessage(error: unknown): string {
+  /*
+   * Errors produced by the old custom API client.
+   */
   if (error instanceof WorkspaceApiError) {
     return error.messages.join(". ");
+  }
+
+  /*
+   * Errors returned by RTK Query fetchBaseQuery.
+   *
+   * Their common shape is:
+   * {
+   *   status: 400,
+   *   data: {
+   *     message: "..."
+   *   }
+   * }
+   */
+  if (isRecord(error) && "data" in error) {
+    const message = getMessageFromResponseData(error.data);
+
+    if (message) {
+      return message;
+    }
+  }
+
+  /*
+   * Serialized RTK Query errors may contain
+   * a direct string error property.
+   */
+  if (isRecord(error) && typeof error.error === "string") {
+    return error.error;
   }
 
   if (error instanceof Error) {

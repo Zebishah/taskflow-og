@@ -1,20 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken } from "@reduxjs/toolkit/query/react";
 
 import { useAuth } from "../../auth/use-auth";
 import {
-  archiveProject,
-  createProject,
-  getProject,
-  getProjects,
-  restoreProject,
-  updateProject,
-} from "../project-api";
-import { projectQueryKeys } from "../project-query-keys";
-import type {
-  CreateProjectInput,
-  Project,
-  UpdateProjectInput,
-} from "../project.types";
+  useArchiveProjectRtkMutation,
+  useCreateProjectRtkMutation,
+  useGetProjectQuery,
+  useGetProjectsQuery,
+  useRestoreProjectRtkMutation,
+  useUpdateProjectRtkMutation,
+} from "../project-rtk-api";
+import type { CreateProjectInput, UpdateProjectInput } from "../project.types";
 
 function requireAccessToken(accessToken: string | null): string {
   if (!accessToken) {
@@ -27,21 +22,21 @@ function requireAccessToken(accessToken: string | null): string {
 export function useProjectsQuery(workspaceId: string | undefined) {
   const { accessToken } = useAuth();
 
-  return useQuery<Project[]>({
-    queryKey: projectQueryKeys.list(workspaceId ?? ""),
-
-    queryFn: () => {
-      if (!workspaceId) {
-        throw new Error("Workspace identifier is required");
-      }
-
-      return getProjects(workspaceId, requireAccessToken(accessToken));
+  return useGetProjectsQuery(
+    workspaceId && accessToken
+      ? {
+          workspaceId,
+          accessToken,
+        }
+      : skipToken,
+    {
+      /*
+       * Cached data is returned immediately.
+       * Data older than 60 seconds is refreshed.
+       */
+      refetchOnMountOrArgChange: 60,
     },
-
-    enabled: Boolean(workspaceId) && accessToken !== null,
-
-    staleTime: 30_000,
-  });
+  );
 }
 
 export function useProjectQuery(
@@ -50,25 +45,18 @@ export function useProjectQuery(
 ) {
   const { accessToken } = useAuth();
 
-  return useQuery<Project>({
-    queryKey: projectQueryKeys.detail(workspaceId ?? "", projectId ?? ""),
-
-    queryFn: () => {
-      if (!workspaceId || !projectId) {
-        throw new Error("Workspace and project identifiers are required");
-      }
-
-      return getProject(
-        workspaceId,
-        projectId,
-        requireAccessToken(accessToken),
-      );
+  return useGetProjectQuery(
+    workspaceId && projectId && accessToken
+      ? {
+          workspaceId,
+          projectId,
+          accessToken,
+        }
+      : skipToken,
+    {
+      refetchOnMountOrArgChange: 60,
     },
-
-    enabled: Boolean(workspaceId) && Boolean(projectId) && accessToken !== null,
-
-    staleTime: 30_000,
-  });
+  );
 }
 
 interface CreateProjectVariables {
@@ -78,37 +66,20 @@ interface CreateProjectVariables {
 
 export function useCreateProjectMutation() {
   const { accessToken } = useAuth();
-  const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ workspaceId, input }: CreateProjectVariables) =>
-      createProject(workspaceId, input, requireAccessToken(accessToken)),
+  const [trigger, mutation] = useCreateProjectRtkMutation();
 
-    onSuccess: (project) => {
-      queryClient.setQueryData<Project[]>(
-        projectQueryKeys.list(project.workspaceId),
-        (projects) => {
-          if (!projects) {
-            return [project];
-          }
+  return {
+    ...mutation,
+    isPending: mutation.isLoading,
 
-          return [
-            project,
-            ...projects.filter((item) => item.id !== project.id),
-          ].sort((first, second) => first.name.localeCompare(second.name));
-        },
-      );
-
-      queryClient.setQueryData(
-        projectQueryKeys.detail(project.workspaceId, project.id),
-        project,
-      );
-
-      void queryClient.invalidateQueries({
-        queryKey: projectQueryKeys.list(project.workspaceId),
-      });
-    },
-  });
+    mutateAsync: ({ workspaceId, input }: CreateProjectVariables) =>
+      trigger({
+        workspaceId,
+        input,
+        accessToken: requireAccessToken(accessToken),
+      }).unwrap(),
+  };
 }
 
 interface UpdateProjectVariables {
@@ -119,32 +90,21 @@ interface UpdateProjectVariables {
 
 export function useUpdateProjectMutation() {
   const { accessToken } = useAuth();
-  const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ workspaceId, projectId, input }: UpdateProjectVariables) =>
-      updateProject(
+  const [trigger, mutation] = useUpdateProjectRtkMutation();
+
+  return {
+    ...mutation,
+    isPending: mutation.isLoading,
+
+    mutateAsync: ({ workspaceId, projectId, input }: UpdateProjectVariables) =>
+      trigger({
         workspaceId,
         projectId,
         input,
-        requireAccessToken(accessToken),
-      ),
-
-    onSuccess: (project) => {
-      queryClient.setQueryData<Project[]>(
-        projectQueryKeys.list(project.workspaceId),
-        (projects) =>
-          projects
-            ?.map((item) => (item.id === project.id ? project : item))
-            .sort((first, second) => first.name.localeCompare(second.name)),
-      );
-
-      queryClient.setQueryData(
-        projectQueryKeys.detail(project.workspaceId, project.id),
-        project,
-      );
-    },
-  });
+        accessToken: requireAccessToken(accessToken),
+      }).unwrap(),
+  };
 }
 
 interface ProjectActionVariables {
@@ -154,54 +114,36 @@ interface ProjectActionVariables {
 
 export function useArchiveProjectMutation() {
   const { accessToken } = useAuth();
-  const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ workspaceId, projectId }: ProjectActionVariables) =>
-      archiveProject(workspaceId, projectId, requireAccessToken(accessToken)),
+  const [trigger, mutation] = useArchiveProjectRtkMutation();
 
-    onSuccess: (_result, variables) => {
-      /*
-       * DELETE returns 204, so invalidate and
-       * reload the server-generated archive time.
-       */
-      void queryClient.invalidateQueries({
-        queryKey: projectQueryKeys.list(variables.workspaceId),
-      });
+  return {
+    ...mutation,
+    isPending: mutation.isLoading,
 
-      void queryClient.invalidateQueries({
-        queryKey: projectQueryKeys.detail(
-          variables.workspaceId,
-          variables.projectId,
-        ),
-      });
-    },
-  });
+    mutateAsync: ({ workspaceId, projectId }: ProjectActionVariables) =>
+      trigger({
+        workspaceId,
+        projectId,
+        accessToken: requireAccessToken(accessToken),
+      }).unwrap(),
+  };
 }
 
 export function useRestoreProjectMutation() {
   const { accessToken } = useAuth();
-  const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ workspaceId, projectId }: ProjectActionVariables) =>
-      restoreProject(workspaceId, projectId, requireAccessToken(accessToken)),
+  const [trigger, mutation] = useRestoreProjectRtkMutation();
 
-    onSuccess: (project) => {
-      queryClient.setQueryData<Project[]>(
-        projectQueryKeys.list(project.workspaceId),
-        (projects) =>
-          projects?.map((item) => (item.id === project.id ? project : item)),
-      );
+  return {
+    ...mutation,
+    isPending: mutation.isLoading,
 
-      queryClient.setQueryData(
-        projectQueryKeys.detail(project.workspaceId, project.id),
-        project,
-      );
-
-      void queryClient.invalidateQueries({
-        queryKey: projectQueryKeys.list(project.workspaceId),
-      });
-    },
-  });
+    mutateAsync: ({ workspaceId, projectId }: ProjectActionVariables) =>
+      trigger({
+        workspaceId,
+        projectId,
+        accessToken: requireAccessToken(accessToken),
+      }).unwrap(),
+  };
 }
