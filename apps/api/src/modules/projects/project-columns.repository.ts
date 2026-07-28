@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, count, eq, max, ne, not, SQL, sql } from 'drizzle-orm';
+import { and, asc, count, eq, max, ne, SQL, sql } from 'drizzle-orm';
 
 import { DATABASE } from '../../database/database.constants';
 import type { Database } from '../../database/database.types';

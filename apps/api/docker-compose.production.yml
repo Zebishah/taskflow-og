@@ -1,0 +1,54 @@
+services:
+  api:
+    image: taskflow-api:local
+
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+
+    container_name: taskflow-api
+
+    restart: unless-stopped
+
+    env_file:
+      - ./apps/api/.env.production
+
+    ports:
+      # Only the EC2 host can access port 3000.
+      # Nginx will proxy public requests to it later.
+      - '127.0.0.1:3000:3000'
+
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/v1/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    stop_grace_period: 30s
+
+  worker:
+    image: taskflow-api:local
+
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+
+    container_name: taskflow-worker
+
+    restart: unless-stopped
+
+    env_file:
+      - ./apps/api/.env.production
+
+    command:
+      - node
+      - dist/workers/worker.js
+
+    stop_grace_period: 30s

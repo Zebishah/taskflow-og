@@ -7,11 +7,14 @@ import { Test } from '@nestjs/testing';
 
 import type {
   Project,
+  ProjectColumn,
   Task,
   Workspace,
   WorkspaceMember,
 } from '../../database/schema';
+import { TaskReminderQueueService } from '../../infrastructure/queue/task-reminder-queue.service';
 import type { WorkspaceMembershipContext } from '../workspaces/workspaces.types';
+import { TaskImagesService } from './task-images.service';
 import { TasksRepository } from './tasks.repository';
 import { TasksService } from './tasks.service';
 
@@ -20,12 +23,26 @@ describe('TasksService', () => {
 
   let repository: {
     findProjectById: jest.MockedFunction<TasksRepository['findProjectById']>;
+    findColumnById: jest.MockedFunction<TasksRepository['findColumnById']>;
+    findDefaultColumn: jest.MockedFunction<
+      TasksRepository['findDefaultColumn']
+    >;
     membershipExists: jest.MockedFunction<TasksRepository['membershipExists']>;
     create: jest.MockedFunction<TasksRepository['create']>;
     findAll: jest.MockedFunction<TasksRepository['findAll']>;
     findById: jest.MockedFunction<TasksRepository['findById']>;
     update: jest.MockedFunction<TasksRepository['update']>;
     delete: jest.MockedFunction<TasksRepository['delete']>;
+  };
+
+  let reminderQueue: {
+    reconcile: jest.MockedFunction<TaskReminderQueueService['reconcile']>;
+  };
+
+  let taskImages: {
+    deleteObjectSafely: jest.MockedFunction<
+      TaskImagesService['deleteObjectSafely']
+    >;
   };
 
   const now = new Date('2026-07-23T10:00:00.000Z');
@@ -79,6 +96,26 @@ describe('TasksService', () => {
     updatedAt: now,
   };
 
+  const activeColumn: ProjectColumn = {
+    id: 'some-project-column-id',
+    projectId: project.id,
+    name: 'In progress',
+    color: 'blue',
+    kind: 'active',
+    position: 1000,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const doneColumn: ProjectColumn = {
+    ...activeColumn,
+    id: 'some-done-column-id',
+    name: 'Done',
+    color: 'emerald',
+    kind: 'done',
+    position: 2000,
+  };
+
   const task: Task = {
     id: '15ca922e-d80f-47dd-83e6-d9f5393b398e',
     workspaceId: workspace.id,
@@ -88,11 +125,15 @@ describe('TasksService', () => {
     taskNumber: 1,
     title: 'Build login page',
     description: null,
-    status: 'todo',
+    columnId: 'some-project-column-id',
     priority: 'medium',
     position: 1000,
     dueAt: null,
     completedAt: null,
+    imageKey: null,
+    imageOriginalName: null,
+    imageContentType: null,
+    imageSizeBytes: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -100,6 +141,8 @@ describe('TasksService', () => {
   beforeEach(async () => {
     repository = {
       findProjectById: jest.fn(),
+      findColumnById: jest.fn(),
+      findDefaultColumn: jest.fn(),
       membershipExists: jest.fn(),
       create: jest.fn(),
       findAll: jest.fn(),
@@ -108,12 +151,28 @@ describe('TasksService', () => {
       delete: jest.fn(),
     };
 
+    reminderQueue = {
+      reconcile: jest.fn().mockResolvedValue(undefined),
+    };
+
+    taskImages = {
+      deleteObjectSafely: jest.fn().mockResolvedValue(undefined),
+    };
+
     const moduleReference = await Test.createTestingModule({
       providers: [
         TasksService,
         {
           provide: TasksRepository,
           useValue: repository,
+        },
+        {
+          provide: TaskReminderQueueService,
+          useValue: reminderQueue,
+        },
+        {
+          provide: TaskImagesService,
+          useValue: taskImages,
         },
       ],
     }).compile();
@@ -127,6 +186,7 @@ describe('TasksService', () => {
 
   it('creates a normalized task', async () => {
     repository.findProjectById.mockResolvedValue(project);
+    repository.findDefaultColumn.mockResolvedValue(activeColumn);
     repository.create.mockResolvedValue(task);
 
     const result = await service.create(ownerContext, project.id, {
@@ -140,9 +200,10 @@ describe('TasksService', () => {
       assigneeMemberId: null,
       title: 'Build login page',
       description: null,
-      status: 'todo',
+      columnId: 'some-project-column-id',
       priority: 'medium',
       dueAt: null,
+      completedAt: null,
     });
 
     expect(result).toEqual(task);
@@ -180,14 +241,15 @@ describe('TasksService', () => {
   it('sets completedAt when moving a task to done', async () => {
     repository.findProjectById.mockResolvedValue(project);
     repository.findById.mockResolvedValue(task);
+    repository.findColumnById.mockResolvedValue(doneColumn);
     repository.update.mockResolvedValue({
       ...task,
-      status: 'done',
+      columnId: doneColumn.id,
       completedAt: now,
     });
 
     await service.update(ownerContext, project.id, task.id, {
-      status: 'done',
+      columnId: doneColumn.id,
     });
 
     expect(repository.update).toHaveBeenCalledWith(
@@ -195,8 +257,8 @@ describe('TasksService', () => {
       project.id,
       task.id,
       expect.objectContaining({
-        status: 'done',
-        completedAt: now,
+        columnId: doneColumn.id,
+        completedAt: expect.any(Date),
       }),
     );
   });
@@ -205,13 +267,14 @@ describe('TasksService', () => {
     repository.findProjectById.mockResolvedValue(project);
     repository.findById.mockResolvedValue({
       ...task,
-      status: 'done',
+      columnId: doneColumn.id,
       completedAt: now,
     });
+    repository.findColumnById.mockResolvedValue(activeColumn);
     repository.update.mockResolvedValue(task);
 
     await service.update(ownerContext, project.id, task.id, {
-      status: 'in_progress',
+      columnId: activeColumn.id,
     });
 
     expect(repository.update).toHaveBeenCalledWith(
@@ -219,7 +282,7 @@ describe('TasksService', () => {
       project.id,
       task.id,
       expect.objectContaining({
-        status: 'in_progress',
+        columnId: activeColumn.id,
         completedAt: null,
       }),
     );

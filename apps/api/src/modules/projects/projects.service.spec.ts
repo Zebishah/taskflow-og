@@ -84,6 +84,7 @@ describe('ProjectsService', () => {
     name: 'Website Redesign',
     key: 'WEB',
     description: 'Redesign the website',
+    nextTaskNumber: 1,
     archivedAt: null,
     createdAt: now,
     updatedAt: now,
