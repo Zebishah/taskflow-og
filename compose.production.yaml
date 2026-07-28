@@ -1,4 +1,4 @@
-name: taskflow
+name: taskflow-production
 
 services:
   api:
