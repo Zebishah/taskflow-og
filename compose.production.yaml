@@ -1,0 +1,92 @@
+name: taskflow
+
+services:
+  api:
+    image: taskflow-api:local
+
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+
+    restart: unless-stopped
+    init: true
+
+    env_file:
+      - apps/api/.env.production
+
+    environment:
+      NODE_ENV: production
+      BULL_BOARD_ENABLED: "false"
+
+    ports:
+      - "127.0.0.1:3000:3000"
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/v1/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    stop_grace_period: 30s
+
+    security_opt:
+      - no-new-privileges:true
+
+  worker:
+    image: taskflow-api:local
+
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+
+    restart: unless-stopped
+    init: true
+
+    env_file:
+      - apps/api/.env.production
+
+    environment:
+      NODE_ENV: production
+      BULL_BOARD_ENABLED: "false"
+
+    command:
+      - node
+      - dist/workers/worker.js
+
+    stop_grace_period: 30s
+
+    security_opt:
+      - no-new-privileges:true
+
+  migration:
+    profiles:
+      - tools
+
+    image: taskflow-migration:local
+
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migration
+
+    restart: "no"
+    init: true
+
+    env_file:
+      - apps/api/.env.production
+
+    environment:
+      NODE_ENV: production
+      BULL_BOARD_ENABLED: "false"
+
+    security_opt:
+      - no-new-privileges:true

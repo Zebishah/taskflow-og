@@ -258,9 +258,12 @@ describe('TasksService', () => {
       task.id,
       expect.objectContaining({
         columnId: doneColumn.id,
-        completedAt: expect.any(Date),
       }),
     );
+
+    const updateInput = repository.update.mock.calls[0]?.[3];
+
+    expect(updateInput?.completedAt).toBeInstanceOf(Date);
   });
 
   it('clears completedAt when reopening a task', async () => {
