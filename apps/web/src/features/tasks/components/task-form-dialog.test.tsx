@@ -6,7 +6,11 @@ import type { ProjectColumn } from "../../project-columns/project-column.types";
 import type { WorkspaceMember } from "../../workspace-collaboration/workspace-collaboration.types";
 import type { Task, TaskFormValues } from "../task.types";
 import { TaskFormDialog } from "./task-form-dialog";
-
+vi.mock("./task-image-manager", () => ({
+  TaskImageManager: () => (
+    <div data-testid="task-image-manager">Task image manager</div>
+  ),
+}));
 const workspaceId = "6eea0d06-9ebb-492b-820c-6f08638e5eef";
 
 const projectId = "da135c51-3f2e-4b59-b737-fc92a0e650b5";
@@ -77,6 +81,10 @@ const existingTask: Task = {
   priority: "high",
   position: 1_000,
   dueAt: "2026-08-15T18:59:59.999Z",
+  imageKey: null,
+  imageOriginalName: null,
+  imageContentType: null,
+  imageSizeBytes: null,
   completedAt: null,
   createdAt: "2026-07-23T10:00:00.000Z",
   updatedAt: "2026-07-23T10:00:00.000Z",
@@ -201,6 +209,7 @@ describe("TaskFormDialog", () => {
         priority: "high",
         assigneeMemberId: member.id,
         dueAt: null,
+        imageFile: null,
       });
     });
   });
