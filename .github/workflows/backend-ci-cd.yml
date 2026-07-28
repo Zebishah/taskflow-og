@@ -7,7 +7,7 @@ on:
 
     paths:
       - "apps/api/**"
-      - "apps/web/package.json"
+      - "apps/web/**"
       - "package.json"
       - "package-lock.json"
       - "compose.production.yaml"
