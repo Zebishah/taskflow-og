@@ -65,6 +65,10 @@ const task: Task = {
   position: 7000,
   dueAt: null,
   completedAt: null,
+  imageKey: null,
+  imageOriginalName: null,
+  imageContentType: null,
+  imageSizeBytes: null,
   createdAt: "2026-07-23T10:00:00.000Z",
   updatedAt: "2026-07-23T10:00:00.000Z",
 };

@@ -22,32 +22,36 @@ const workspaceId = "6eea0d06-9ebb-492b-820c-6f08638e5eef";
 const projectId = "da135c51-3f2e-4b59-b737-fc92a0e650b5";
 
 const taskId = "15ca922e-d80f-47dd-83e6-d9f5393b398e";
+const todoColumnId = "11111111-1111-4111-8111-111111111111";
 
+const doneColumnId = "33333333-3333-4333-8333-333333333333";
 const originalTask: Task = {
   id: taskId,
   workspaceId,
   projectId,
+  columnId: todoColumnId,
   createdByUserId: "2e01067b-0ae0-431c-8833-d7b2d77518f0",
   assigneeMemberId: null,
   taskNumber: 1,
   title: "Build login page",
   description: null,
-  status: "todo",
   priority: "medium",
   position: 1000,
   dueAt: null,
   completedAt: null,
+  imageKey: null,
+  imageOriginalName: null,
+  imageContentType: null,
+  imageSizeBytes: null,
   createdAt: "2026-07-23T10:00:00.000Z",
   updatedAt: "2026-07-23T10:00:00.000Z",
 };
-
 const updatedTask: Task = {
   ...originalTask,
-  status: "done",
+  columnId: doneColumnId,
   completedAt: "2026-07-23T12:00:00.000Z",
   updatedAt: "2026-07-23T12:00:00.000Z",
 };
-
 const authValue: AuthContextValue = {
   user: {
     id: "2e01067b-0ae0-431c-8833-d7b2d77518f0",
@@ -119,7 +123,7 @@ describe("useUpdateTaskMutation", () => {
         taskId,
 
         input: {
-          status: "done",
+          columnId: doneColumnId,
         },
       });
     });
@@ -129,7 +133,7 @@ describe("useUpdateTaskMutation", () => {
       projectId,
       taskId,
       {
-        status: "done",
+        columnId: doneColumnId,
       },
       "access-token",
     );
@@ -168,7 +172,7 @@ describe("useUpdateTaskMutation", () => {
           taskId,
 
           input: {
-            status: "done",
+            columnId: doneColumnId,
           },
         }),
       ).rejects.toBe(requestError);
