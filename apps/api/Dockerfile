@@ -7,7 +7,7 @@ FROM node:${NODE_VERSION}-bookworm-slim AS base
 WORKDIR /app
 
 
-# Install all dependencies and compile the application.
+# Install all dependencies and compile TaskFlow.
 FROM base AS build
 
 COPY package.json package-lock.json ./
@@ -21,16 +21,7 @@ COPY apps/api ./apps/api
 RUN npm run build --workspace=@taskflow/api
 
 
-# This optional stage will run Drizzle migrations once.
-# We will use it through Docker Compose in Phase 3.
-FROM build AS migration
-
-WORKDIR /app/apps/api
-
-CMD ["npm", "run", "db:migrate"]
-
-
-# Install only dependencies required at runtime.
+# Install only production dependencies.
 FROM base AS production-dependencies
 
 ENV NODE_ENV=production
@@ -45,14 +36,20 @@ RUN npm ci \
     && npm cache clean --force
 
 
-# Final image used by both the API and worker containers.
+# One compact image used by the API, worker, and migration job.
 FROM base AS runtime
 
+ARG SOURCE_REPOSITORY=https://github.com/Zebishah/taskflow-og
+
 ENV NODE_ENV=production
+
+LABEL org.opencontainers.image.source="${SOURCE_REPOSITORY}"
+LABEL org.opencontainers.image.description="TaskFlow API, BullMQ worker, and migration runner"
 
 COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=production-dependencies /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build /app/apps/api/dist ./apps/api/dist
+COPY --from=build /app/apps/api/drizzle ./apps/api/drizzle
 
 WORKDIR /app/apps/api
 

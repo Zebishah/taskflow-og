@@ -1,0 +1,225 @@
+name: TaskFlow Backend CI/CD
+
+on:
+  push:
+    branches:
+      - feature/membership-invitations-workspaces
+
+    paths:
+      - "apps/api/**"
+      - "apps/web/package.json"
+      - "package.json"
+      - "package-lock.json"
+      - "compose.production.yaml"
+      - "scripts/deploy-production.sh"
+      - ".github/workflows/backend-ci-cd.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taskflow-production-backend
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::155261241691:role/TaskFlowGitHubActionsRole
+  EC2_INSTANCE_ID: i-0f562350168986e61
+  DEPLOYMENT_BRANCH: feature/membership-invitations-workspaces
+  REGISTRY: ghcr.io
+  IMAGE_NAME: zebishah/taskflow-og-api
+
+jobs:
+  test:
+    name: Test and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.23.1"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build API
+        run: npm run build --workspace=@taskflow/api
+
+      - name: Run API unit tests
+        run: npm test --workspace=@taskflow/api -- --runInBand
+
+      - name: Build frontend
+        run: npm run build --workspace=@taskflow/web
+
+      - name: Run frontend unit tests
+        run: npm test --workspace=@taskflow/web
+
+      - name: Validate production Compose configuration
+        run: |
+          touch apps/api/.env.production
+
+          docker compose \
+            --file compose.production.yaml \
+            --profile tools \
+            config --quiet
+
+  publish:
+    name: Build and publish image
+    needs: test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image: ${{ steps.image.outputs.reference }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set immutable image reference
+        id: image
+        shell: bash
+        run: |
+          image_reference="${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}"
+          echo "reference=${image_reference}" >> "${GITHUB_OUTPUT}"
+          echo "Publishing ${image_reference}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push immutable production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          target: runtime
+          push: true
+          tags: ${{ steps.image.outputs.reference }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to EC2
+    needs: publish
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Configure temporary AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: TaskFlowGitHubDeployment
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
+      - name: Deploy through AWS Systems Manager
+        id: deployment
+        shell: bash
+        env:
+          IMAGE_REFERENCE: ${{ needs.publish.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+
+          commands="$(
+            jq \
+              --null-input \
+              --compact-output \
+              --arg branch "${DEPLOYMENT_BRANCH}" \
+              --arg sha "${GITHUB_SHA}" \
+              --arg image "${IMAGE_REFERENCE}" \
+              '[
+                "sudo -u ubuntu git -C /opt/taskflow fetch --prune origin \($branch)",
+                "sudo -u ubuntu git -C /opt/taskflow checkout --force --detach \($sha)",
+                "chmod 750 /opt/taskflow/scripts/deploy-production.sh",
+                "/opt/taskflow/scripts/deploy-production.sh \($image)"
+              ]'
+          )"
+
+          parameters="$(jq --null-input --compact-output --argjson commands "${commands}" '{commands: $commands}')"
+
+          command_id="$(
+            aws ssm send-command \
+              --region "${AWS_REGION}" \
+              --instance-ids "${EC2_INSTANCE_ID}" \
+              --document-name "AWS-RunShellScript" \
+              --comment "Deploy TaskFlow commit ${GITHUB_SHA}" \
+              --parameters "${parameters}" \
+              --timeout-seconds 900 \
+              --query "Command.CommandId" \
+              --output text
+          )"
+
+          echo "command-id=${command_id}" >> "${GITHUB_OUTPUT}"
+          echo "SSM command ID: ${command_id}"
+
+          if ! aws ssm wait command-executed \
+            --region "${AWS_REGION}" \
+            --command-id "${command_id}" \
+            --instance-id "${EC2_INSTANCE_ID}"
+          then
+            echo "SSM deployment did not complete successfully."
+
+            aws ssm get-command-invocation \
+              --region "${AWS_REGION}" \
+              --command-id "${command_id}" \
+              --instance-id "${EC2_INSTANCE_ID}" \
+              --output json
+
+            exit 1
+          fi
+
+          status="$(
+            aws ssm get-command-invocation \
+              --region "${AWS_REGION}" \
+              --command-id "${command_id}" \
+              --instance-id "${EC2_INSTANCE_ID}" \
+              --query "Status" \
+              --output text
+          )"
+
+          aws ssm get-command-invocation \
+            --region "${AWS_REGION}" \
+            --command-id "${command_id}" \
+            --instance-id "${EC2_INSTANCE_ID}" \
+            --query "{Status:Status,Output:StandardOutputContent,Errors:StandardErrorContent}" \
+            --output json
+
+          test "${status}" = "Success"
+
+      - name: Verify public production health
+        run: |
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --retry 10 \
+            --retry-delay 3 \
+            --retry-all-errors \
+            https://api.nagumo-spot.me/api/v1/health
+

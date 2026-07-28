@@ -2,7 +2,7 @@ name: taskflow-production
 
 services:
   api:
-    image: taskflow-api:local
+    image: ${TASKFLOW_API_IMAGE:-taskflow-api:local}
 
     build:
       context: .
@@ -41,7 +41,7 @@ services:
       - no-new-privileges:true
 
   worker:
-    image: taskflow-api:local
+    image: ${TASKFLOW_API_IMAGE:-taskflow-api:local}
 
     build:
       context: .
@@ -71,12 +71,12 @@ services:
     profiles:
       - tools
 
-    image: taskflow-migration:local
+    image: ${TASKFLOW_API_IMAGE:-taskflow-api:local}
 
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-      target: migration
+      target: runtime
 
     restart: "no"
     init: true
@@ -87,6 +87,10 @@ services:
     environment:
       NODE_ENV: production
       BULL_BOARD_ENABLED: "false"
+
+    command:
+      - node
+      - dist/database/migrate.js
 
     security_opt:
       - no-new-privileges:true
