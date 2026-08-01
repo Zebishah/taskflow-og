@@ -6,8 +6,6 @@ FROM node:${NODE_VERSION}-bookworm-slim AS base
 
 WORKDIR /app
 
-
-# Install all dependencies and compile TaskFlow.
 FROM base AS build
 
 COPY package.json package-lock.json ./
@@ -20,8 +18,6 @@ COPY apps/api ./apps/api
 
 RUN npm run build --workspace=@taskflow/api
 
-
-# Install only production dependencies.
 FROM base AS production-dependencies
 
 ENV NODE_ENV=production
@@ -35,8 +31,6 @@ RUN npm ci \
       --workspace=@taskflow/api \
     && npm cache clean --force
 
-
-# One compact image used by the API, worker, and migration job.
 FROM base AS runtime
 
 ARG SOURCE_REPOSITORY=https://github.com/Zebishah/taskflow-og

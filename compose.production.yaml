@@ -3,10 +3,8 @@ name: taskflow-production
 services:
   redis:
     image: redis:7-alpine
-
     restart: unless-stopped
     init: true
-
     command:
       - redis-server
       - --appendonly
@@ -17,10 +15,8 @@ services:
       - 128mb
       - --maxmemory-policy
       - noeviction
-
     volumes:
       - taskflow-redis-data:/data
-
     healthcheck:
       test:
         - CMD
@@ -30,38 +26,29 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-
     mem_limit: 192m
-
     security_opt:
       - no-new-privileges:true
 
   api:
     image: ${TASKFLOW_API_IMAGE:-taskflow-api:local}
-
     build:
       context: .
       dockerfile: apps/api/Dockerfile
       target: runtime
-
     restart: unless-stopped
     init: true
-
     env_file:
       - apps/api/.env.production
-
     environment:
       NODE_ENV: production
       BULL_BOARD_ENABLED: "false"
       REDIS_URL: redis://redis:6379
-
     depends_on:
       redis:
         condition: service_healthy
-
     ports:
       - "127.0.0.1:3000:3000"
-
     healthcheck:
       test:
         [
@@ -74,70 +61,53 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-
     stop_grace_period: 30s
-
     security_opt:
       - no-new-privileges:true
 
   worker:
     image: ${TASKFLOW_API_IMAGE:-taskflow-api:local}
-
     build:
       context: .
       dockerfile: apps/api/Dockerfile
       target: runtime
-
     restart: unless-stopped
     init: true
-
     env_file:
       - apps/api/.env.production
-
     environment:
       NODE_ENV: production
       BULL_BOARD_ENABLED: "false"
       REDIS_URL: redis://redis:6379
-
     depends_on:
       redis:
         condition: service_healthy
-
     command:
       - node
       - dist/workers/worker.js
-
     stop_grace_period: 30s
-
     security_opt:
       - no-new-privileges:true
 
   migration:
     profiles:
       - tools
-
     image: ${TASKFLOW_API_IMAGE:-taskflow-api:local}
-
     build:
       context: .
       dockerfile: apps/api/Dockerfile
       target: runtime
-
     restart: "no"
     init: true
-
     env_file:
       - apps/api/.env.production
-
     environment:
       NODE_ENV: production
       BULL_BOARD_ENABLED: "false"
       REDIS_URL: redis://redis:6379
-
     command:
       - node
       - dist/database/migrate.js
-
     security_opt:
       - no-new-privileges:true
 
