@@ -41,7 +41,7 @@ describe('HealthController', () => {
     const result = await controller.check();
 
     expect(result).toMatchObject({
-      status: 'ok',
+      status: 'ok At All',
       service: 'taskflow-api',
       database: 'connected',
       redis: 'connected',
