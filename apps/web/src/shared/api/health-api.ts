@@ -1,7 +1,7 @@
 import { apiClient } from "./api-client";
 
 export interface HealthResponse {
-  status: "done ci cd";
+  status: "done";
   service: "taskflow-api";
   database: "connected";
   redis: "connected";

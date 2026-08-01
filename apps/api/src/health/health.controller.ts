@@ -14,7 +14,7 @@ import { RedisHealthService } from './redis-health.service';
 type DependencyStatus = 'connected' | 'disconnected';
 
 interface HealthResponse {
-  status: 'ok' | 'error';
+  status: 'ok At All' | 'error';
   service: 'taskflow-api';
   database: DependencyStatus;
   redis: DependencyStatus;
@@ -43,7 +43,7 @@ export class HealthController {
       status:
         databaseResult.status === 'fulfilled' &&
         redisResult.status === 'fulfilled'
-          ? 'ok'
+          ? 'ok At All'
           : 'error',
 
       service: 'taskflow-api',
