@@ -23,7 +23,7 @@ concurrency:
 
 env:
   AWS_REGION: us-east-1
-  AWS_ROLE_ARN: arn:aws:iam::155261241691:role/TaskFlowGitHubActionsRole
+  AWS_ROLE_ARN: arn:aws:iam::135438495576:role/TaskFlowGitHubActionsRole
   EC2_INSTANCE_ID: i-0175f95f65f632b42
   DEPLOYMENT_BRANCH: feature/membership-invitations-workspaces
   REGISTRY: ghcr.io
