@@ -148,9 +148,12 @@ export class AuthController {
     return {
       httpOnly: true,
       secure: this.isProduction,
-
+      /*
+       * Cross-site SPA (frontend host ≠ API host) needs SameSite=None.
+       * Partitioned helps Chrome accept the cookie in a third-party context.
+       */
       sameSite: this.isProduction ? ('none' as const) : ('lax' as const),
-
+      partitioned: this.isProduction,
       path: '/api/v1/auth',
     };
   }
