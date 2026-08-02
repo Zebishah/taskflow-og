@@ -29,6 +29,8 @@ export class CacheService implements OnApplicationShutdown {
 
   public async getJson<T>(key: string): Promise<T | null> {
     try {
+      await this.ensureConnected();
+
       const value = await this.redis.get(key);
 
       if (value === null) {
@@ -49,6 +51,8 @@ export class CacheService implements OnApplicationShutdown {
     ttlSeconds: number,
   ): Promise<void> {
     try {
+      await this.ensureConnected();
+
       await this.redis.set(key, JSON.stringify(value), 'EX', ttlSeconds);
     } catch (error: unknown) {
       this.logFailure('set', key, error);
@@ -63,6 +67,8 @@ export class CacheService implements OnApplicationShutdown {
     }
 
     try {
+      await this.ensureConnected();
+
       await this.redis.del(...uniqueKeys);
     } catch (error: unknown) {
       this.logFailure('del', uniqueKeys.join(','), error);
@@ -94,6 +100,16 @@ export class CacheService implements OnApplicationShutdown {
     }
 
     this.redis.disconnect();
+  }
+
+  private async ensureConnected(): Promise<void> {
+    if (this.redis.status === 'ready') {
+      return;
+    }
+
+    if (this.redis.status === 'wait' || this.redis.status === 'end') {
+      await this.redis.connect();
+    }
   }
 
   private logFailure(operation: string, key: string, error: unknown): void {

@@ -14,6 +14,8 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "/api/v1").replace(
 
 const AUTH_BASE_URL = `${API_BASE_URL}/auth`;
 
+const SESSION_RESTORE_TIMEOUT_MS = 12_000;
+
 let pendingRefreshRequest: Promise<AuthResponse> | null = null;
 
 async function request<T>(url: string, options: RequestInit): Promise<T> {
@@ -58,11 +60,28 @@ export function refreshSession(): Promise<AuthResponse> {
     return pendingRefreshRequest;
   }
 
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => {
+    controller.abort();
+  }, SESSION_RESTORE_TIMEOUT_MS);
+
   pendingRefreshRequest = request<AuthResponse>(`${AUTH_BASE_URL}/refresh`, {
     method: "POST",
-  }).finally(() => {
-    pendingRefreshRequest = null;
-  });
+    signal: controller.signal,
+  })
+    .catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new Error(
+          `Session restore timed out talking to ${AUTH_BASE_URL}/refresh`,
+        );
+      }
+
+      throw error;
+    })
+    .finally(() => {
+      window.clearTimeout(timeoutId);
+      pendingRefreshRequest = null;
+    });
 
   return pendingRefreshRequest;
 }

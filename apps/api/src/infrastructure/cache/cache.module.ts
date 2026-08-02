@@ -14,9 +14,17 @@ import { CacheService } from './cache.service';
         const redisUrl = configService.getOrThrow<string>('REDIS_URL');
 
         return new Redis(redisUrl, {
-          maxRetriesPerRequest: 2,
+          maxRetriesPerRequest: 1,
           enableReadyCheck: true,
-          lazyConnect: false,
+          lazyConnect: true,
+          connectTimeout: 5_000,
+          retryStrategy: (attempt) => {
+            if (attempt > 3) {
+              return null;
+            }
+
+            return Math.min(attempt * 200, 1_000);
+          },
         });
       },
     },

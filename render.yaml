@@ -17,12 +17,11 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3000
+      # Do not hardcode PORT — Render injects it.
       - key: API_PREFIX
         value: api/v1
       - key: FRONTEND_URL
-        value: https://taskflow-web.onrender.com
+        value: https://taskflow-web-9ocr.onrender.com
 
       - key: DATABASE_URL
         sync: false
@@ -81,4 +80,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://taskflow-api.onrender.com/api/v1
+        value: https://taskflow-api-mdhj.onrender.com/api/v1
