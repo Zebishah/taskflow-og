@@ -8,7 +8,9 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: npm install && npm run build:api
+    # NODE_ENV=production would skip devDependencies (nest CLI, typescript).
+    # Install with --include=dev so the build can compile, then start uses dist/.
+    buildCommand: npm install --include=dev && npm run build:api
     startCommand: npm run start:prod --workspace=@taskflow/api
     healthCheckPath: /api/v1/health
     autoDeploy: true
@@ -66,7 +68,7 @@ services:
     name: taskflow-web
     runtime: static
     rootDir: .
-    buildCommand: npm install && npm run build:web
+    buildCommand: npm install --include=dev && npm run build:web
     staticPublishPath: apps/web/dist
     autoDeploy: true
     headers:
