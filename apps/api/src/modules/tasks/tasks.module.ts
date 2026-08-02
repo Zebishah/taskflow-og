@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { QueueModule } from '../../infrastructure/queue/queue.module';
+import { CacheModule } from '../../infrastructure/cache/cache.module';
+import { RemindersModule } from '../../infrastructure/reminders/reminders.module';
 import { S3StorageModule } from '../../infrastructure/storage/s3-storage.module';
 import { AuthModule } from '../auth/auth.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
@@ -12,7 +13,13 @@ import { TasksRepository } from './tasks.repository';
 import { TasksService } from './tasks.service';
 
 @Module({
-  imports: [AuthModule, WorkspacesModule, QueueModule, S3StorageModule],
+  imports: [
+    AuthModule,
+    WorkspacesModule,
+    RemindersModule,
+    CacheModule,
+    S3StorageModule,
+  ],
 
   controllers: [TasksController, TaskImagesController],
 

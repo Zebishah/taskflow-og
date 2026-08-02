@@ -1,3 +1,9 @@
+/*
+ * ============================================================================
+ * DISABLED — BullMQ WorkerModule is preserved for later restore only.
+ * Do NOT start workers/worker.ts. Active reminders use RemindersModule cron.
+ * ============================================================================
+ */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 

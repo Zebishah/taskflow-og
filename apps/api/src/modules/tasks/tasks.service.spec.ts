@@ -12,7 +12,8 @@ import type {
   Workspace,
   WorkspaceMember,
 } from '../../database/schema';
-import { TaskReminderQueueService } from '../../infrastructure/queue/task-reminder-queue.service';
+import { TaskReminderScheduleService } from '../../infrastructure/reminders/task-reminder-schedule.service';
+import { CacheService } from '../../infrastructure/cache/cache.service';
 import type { WorkspaceMembershipContext } from '../workspaces/workspaces.types';
 import { TaskImagesService } from './task-images.service';
 import { TasksRepository } from './tasks.repository';
@@ -35,8 +36,8 @@ describe('TasksService', () => {
     delete: jest.MockedFunction<TasksRepository['delete']>;
   };
 
-  let reminderQueue: {
-    reconcile: jest.MockedFunction<TaskReminderQueueService['reconcile']>;
+  let reminderSchedule: {
+    reconcile: jest.MockedFunction<TaskReminderScheduleService['reconcile']>;
   };
 
   let taskImages: {
@@ -129,6 +130,8 @@ describe('TasksService', () => {
     priority: 'medium',
     position: 1000,
     dueAt: null,
+    reminderAt: null,
+    reminderSentAt: null,
     completedAt: null,
     imageKey: null,
     imageOriginalName: null,
@@ -151,7 +154,7 @@ describe('TasksService', () => {
       delete: jest.fn(),
     };
 
-    reminderQueue = {
+    reminderSchedule = {
       reconcile: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -167,12 +170,20 @@ describe('TasksService', () => {
           useValue: repository,
         },
         {
-          provide: TaskReminderQueueService,
-          useValue: reminderQueue,
+          provide: TaskReminderScheduleService,
+          useValue: reminderSchedule,
         },
         {
           provide: TaskImagesService,
           useValue: taskImages,
+        },
+        {
+          provide: CacheService,
+          useValue: {
+            getJson: jest.fn().mockResolvedValue(null),
+            setJson: jest.fn().mockResolvedValue(undefined),
+            del: jest.fn().mockResolvedValue(undefined),
+          },
         },
       ],
     }).compile();

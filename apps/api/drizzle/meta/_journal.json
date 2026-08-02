@@ -15,6 +15,13 @@
       "when": 1785068616976,
       "tag": "0001_task-cover-images",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785680000000,
+      "tag": "0002_task-reminders-cron",
+      "breakpoints": true
     }
   ]
 }

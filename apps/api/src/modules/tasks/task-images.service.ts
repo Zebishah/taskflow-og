@@ -8,6 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 
 import type { Task } from '../../database/schema';
+import { CacheKeys } from '../../infrastructure/cache/cache.keys';
+import { CacheService } from '../../infrastructure/cache/cache.service';
 import { S3StorageService } from '../../infrastructure/storage/s3-storage.service';
 import {
   allowedTaskImageContentTypes,
@@ -32,6 +34,7 @@ export class TaskImagesService {
   public constructor(
     private readonly repository: TaskImagesRepository,
     private readonly storage: S3StorageService,
+    private readonly cacheService: CacheService,
     configService: ConfigService,
   ) {
     this.maximumBytes = configService.getOrThrow<number>(
@@ -185,6 +188,10 @@ export class TaskImagesService {
       await this.deleteObjectSafely(task.imageKey);
     }
 
+    await this.cacheService.del(
+      CacheKeys.projectTasks(workspaceId, projectId),
+    );
+
     return this.createResponse(updatedTask);
   }
 
@@ -228,6 +235,10 @@ export class TaskImagesService {
     }
 
     await this.deleteObjectSafely(task.imageKey);
+
+    await this.cacheService.del(
+      CacheKeys.projectTasks(context.workspace.id, projectId),
+    );
   }
 
   public async deleteObjectSafely(objectKey: string | null): Promise<void> {

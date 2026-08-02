@@ -10,6 +10,10 @@ import type {
   ProjectColumn,
   WorkspaceRole,
 } from '../../database/schema';
+import { CACHE_TTL_SECONDS } from '../../infrastructure/cache/cache.constants';
+import { CacheKeys } from '../../infrastructure/cache/cache.keys';
+import { CacheService } from '../../infrastructure/cache/cache.service';
+import { reviveDatesInObject } from '../../infrastructure/cache/cache.revive';
 import type { WorkspaceMembershipContext } from '../workspaces/workspaces.types';
 import type { CreateProjectColumnDto } from './dto/project-columns/create-project-column.dto';
 import type { ReorderProjectColumnsDto } from './dto/project-columns/reorder-project-columns.dto';
@@ -25,6 +29,7 @@ export class ProjectColumnsService {
   public constructor(
     private readonly repository: ProjectColumnsRepository,
     private readonly projectsRepository: ProjectsRepository,
+    private readonly cacheService: CacheService,
   ) {}
 
   public async findAll(
@@ -33,7 +38,34 @@ export class ProjectColumnsService {
   ): Promise<ProjectColumn[]> {
     await this.findProjectOrFail(context.workspace.id, projectId);
 
-    return this.repository.findAll(projectId);
+    const cacheKey = CacheKeys.projectColumns(projectId);
+    const cached = await this.cacheService.getJson<ProjectColumn[]>(cacheKey);
+
+    if (cached) {
+      return cached.map((column) =>
+        reviveDatesInObject(column, ['createdAt', 'updatedAt']),
+      );
+    }
+
+    const columns = await this.repository.findAll(projectId);
+
+    await this.cacheService.setJson(
+      cacheKey,
+      columns,
+      CACHE_TTL_SECONDS.columnsList,
+    );
+
+    return columns;
+  }
+
+  private async invalidateColumns(
+    workspaceId: string,
+    projectId: string,
+  ): Promise<void> {
+    await this.cacheService.del(
+      CacheKeys.projectColumns(projectId),
+      CacheKeys.projectTasks(workspaceId, projectId),
+    );
   }
 
   public async create(
@@ -70,13 +102,17 @@ export class ProjectColumnsService {
     const highestPosition =
       await this.repository.findHighestPosition(projectId);
 
-    return this.repository.create({
+    const created = await this.repository.create({
       projectId,
       name: normalizedName,
       color: dto.color ?? 'slate',
       kind: dto.kind ?? 'active',
       position: highestPosition + 1_000,
     });
+
+    await this.invalidateColumns(context.workspace.id, projectId);
+
+    return created;
   }
 
   public async update(
@@ -171,6 +207,8 @@ export class ProjectColumnsService {
       throw new NotFoundException('Column was not found');
     }
 
+    await this.invalidateColumns(context.workspace.id, projectId);
+
     return updated;
   }
 
@@ -201,7 +239,11 @@ export class ProjectColumnsService {
       );
     }
 
-    return this.repository.reorder(projectId, dto.columnIds);
+    const reordered = await this.repository.reorder(projectId, dto.columnIds);
+
+    await this.invalidateColumns(context.workspace.id, projectId);
+
+    return reordered;
   }
 
   public async remove(
@@ -258,6 +300,8 @@ export class ProjectColumnsService {
     }
 
     await this.repository.deleteAndMoveTasks(projectId, columnId, destination);
+
+    await this.invalidateColumns(context.workspace.id, projectId);
   }
 
   private async findProjectOrFail(

@@ -10,6 +10,7 @@ import type {
   Workspace,
   WorkspaceMember,
 } from '../../database/schema';
+import { CacheService } from '../../infrastructure/cache/cache.service';
 import type { WorkspaceMembershipContext } from '../workspaces/workspaces.types';
 import { ProjectsRepository } from './projects.repository';
 import { ProjectsService } from './projects.service';
@@ -112,6 +113,14 @@ describe('ProjectsService', () => {
         {
           provide: ProjectsRepository,
           useValue: repository,
+        },
+        {
+          provide: CacheService,
+          useValue: {
+            getJson: jest.fn().mockResolvedValue(null),
+            setJson: jest.fn().mockResolvedValue(undefined),
+            del: jest.fn().mockResolvedValue(undefined),
+          },
         },
       ],
     }).compile();

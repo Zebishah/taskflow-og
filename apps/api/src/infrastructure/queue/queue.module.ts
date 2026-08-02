@@ -1,3 +1,10 @@
+/*
+ * ============================================================================
+ * DISABLED — BullMQ queue module is preserved for later restore only.
+ * Do NOT import QueueModule into AppModule / feature modules.
+ * Active path: immediate emails + Postgres/cron reminders + Upstash cache.
+ * ============================================================================
+ */
 import {
   Inject,
   Injectable,

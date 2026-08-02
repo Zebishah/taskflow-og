@@ -9,7 +9,6 @@ import { sql } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants';
 import type { Database } from '../database/database.types';
-import { RedisHealthService } from './redis-health.service';
 
 type DependencyStatus = 'connected' | 'disconnected';
 
@@ -17,7 +16,6 @@ interface HealthResponse {
   status: 'ok At All' | 'error';
   service: 'taskflow-api';
   database: DependencyStatus;
-  redis: DependencyStatus;
   timestamp: string;
 }
 
@@ -28,41 +26,31 @@ export class HealthController {
   public constructor(
     @Inject(DATABASE)
     private readonly database: Database,
-
-    private readonly redisHealthService: RedisHealthService,
   ) {}
 
   @Get()
   public async check(): Promise<HealthResponse> {
-    const [databaseResult, redisResult] = await Promise.allSettled([
-      this.database.execute(sql`SELECT 1`),
-      this.redisHealthService.ping(),
-    ]);
+    /*
+     * Render (and other hosts) call this path repeatedly to keep the
+     * service marked healthy. Do NOT ping Upstash here — that would
+     * burn free-tier Redis commands every few seconds with zero users.
+     * Cache health is not required for liveness.
+     */
+    let databaseStatus: DependencyStatus = 'connected';
+
+    try {
+      await this.database.execute(sql`SELECT 1`);
+    } catch (reason: unknown) {
+      databaseStatus = 'disconnected';
+      this.logFailure('Database', reason);
+    }
 
     const response: HealthResponse = {
-      status:
-        databaseResult.status === 'fulfilled' &&
-        redisResult.status === 'fulfilled'
-          ? 'ok At All'
-          : 'error',
-
+      status: databaseStatus === 'connected' ? 'ok At All' : 'error',
       service: 'taskflow-api',
-
-      database:
-        databaseResult.status === 'fulfilled' ? 'connected' : 'disconnected',
-
-      redis: redisResult.status === 'fulfilled' ? 'connected' : 'disconnected',
-
+      database: databaseStatus,
       timestamp: new Date().toISOString(),
     };
-
-    if (databaseResult.status === 'rejected') {
-      this.logFailure('Database', databaseResult.reason);
-    }
-
-    if (redisResult.status === 'rejected') {
-      this.logFailure('Redis', redisResult.reason);
-    }
 
     if (response.status === 'error') {
       throw new ServiceUnavailableException(response);

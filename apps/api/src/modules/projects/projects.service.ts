@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 
 import type { Project, WorkspaceRole } from '../../database/schema';
+import { CACHE_TTL_SECONDS } from '../../infrastructure/cache/cache.constants';
+import { CacheKeys } from '../../infrastructure/cache/cache.keys';
+import { CacheService } from '../../infrastructure/cache/cache.service';
+import { reviveDatesInObject } from '../../infrastructure/cache/cache.revive';
 import type { WorkspaceMembershipContext } from '../workspaces/workspaces.types';
 import type { CreateProjectDto } from './dto/create-project.dto';
 import type { UpdateProjectDto } from './dto/update-project.dto';
@@ -13,7 +17,10 @@ import { ProjectsRepository } from './projects.repository';
 
 @Injectable()
 export class ProjectsService {
-  public constructor(private readonly projectsRepository: ProjectsRepository) {}
+  public constructor(
+    private readonly projectsRepository: ProjectsRepository,
+    private readonly cacheService: CacheService,
+  ) {}
 
   public async create(
     context: WorkspaceMembershipContext,
@@ -37,13 +44,19 @@ export class ProjectsService {
     }
 
     try {
-      return await this.projectsRepository.create({
+      const project = await this.projectsRepository.create({
         workspaceId: context.workspace.id,
         createdByUserId: context.membership.userId,
         name,
         key,
         description,
       });
+
+      await this.cacheService.del(
+        CacheKeys.workspaceProjects(context.workspace.id),
+      );
+
+      return project;
     } catch (error: unknown) {
       if (this.hasPostgresErrorCode(error, '23505')) {
         throw new ConflictException(
@@ -58,7 +71,31 @@ export class ProjectsService {
   public async findAll(
     context: WorkspaceMembershipContext,
   ): Promise<Project[]> {
-    return this.projectsRepository.findAll(context.workspace.id);
+    const cacheKey = CacheKeys.workspaceProjects(context.workspace.id);
+
+    const cached = await this.cacheService.getJson<Project[]>(cacheKey);
+
+    if (cached) {
+      return cached.map((project) =>
+        reviveDatesInObject(project, [
+          'archivedAt',
+          'createdAt',
+          'updatedAt',
+        ]),
+      );
+    }
+
+    const projects = await this.projectsRepository.findAll(
+      context.workspace.id,
+    );
+
+    await this.cacheService.setJson(
+      cacheKey,
+      projects,
+      CACHE_TTL_SECONDS.projectsList,
+    );
+
+    return projects;
   }
 
   public async findOne(
@@ -132,6 +169,10 @@ export class ProjectsService {
         throw new NotFoundException('Project was not found');
       }
 
+      await this.cacheService.del(
+        CacheKeys.workspaceProjects(context.workspace.id),
+      );
+
       return project;
     } catch (error: unknown) {
       if (this.hasPostgresErrorCode(error, '23505')) {
@@ -169,6 +210,12 @@ export class ProjectsService {
         'Project could not be archived because it was already changed',
       );
     }
+
+    await this.cacheService.del(
+      CacheKeys.workspaceProjects(context.workspace.id),
+      CacheKeys.projectColumns(projectId),
+      CacheKeys.projectTasks(context.workspace.id, projectId),
+    );
   }
 
   public async restore(
@@ -197,6 +244,10 @@ export class ProjectsService {
       );
     }
 
+    await this.cacheService.del(
+      CacheKeys.workspaceProjects(context.workspace.id),
+    );
+
     return restoredProject;
   }
 
@@ -209,10 +260,6 @@ export class ProjectsService {
       projectId,
     );
 
-    /*
-     * We do not reveal whether the project exists
-     * in another workspace.
-     */
     if (!project) {
       throw new NotFoundException('Project was not found');
     }
@@ -240,11 +287,6 @@ export class ProjectsService {
     return normalizedValue ? normalizedValue : null;
   }
 
-  /*
-   * Drizzle can wrap the PostgreSQL error inside
-   * one or more "cause" properties. This function
-   * checks both the main error and wrapped errors.
-   */
   private hasPostgresErrorCode(error: unknown, expectedCode: string): boolean {
     let currentError: unknown = error;
 

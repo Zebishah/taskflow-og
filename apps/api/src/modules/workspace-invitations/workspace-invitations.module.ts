@@ -1,14 +1,20 @@
 import { Module } from '@nestjs/common';
+
+import { MailModule } from '../../infrastructure/mail/mail.module';
 import { AuthModule } from '../auth/auth.module';
 import { WorkspaceMembersModule } from '../workspace-members/workspace-members.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { WorkspaceInvitationsController } from './workspace-invitations.controller';
 import { WorkspaceInvitationsRepository } from './workspace-invitations.repository';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
-import { QueueModule } from '../../infrastructure/queue/queue.module';
 
 @Module({
-  imports: [AuthModule, QueueModule, WorkspacesModule, WorkspaceMembersModule],
+  imports: [
+    AuthModule,
+    MailModule,
+    WorkspacesModule,
+    WorkspaceMembersModule,
+  ],
 
   controllers: [WorkspaceInvitationsController],
 

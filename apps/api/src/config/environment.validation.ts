@@ -32,24 +32,21 @@ class EnvironmentVariables {
   @Min(10)
   @Max(15)
   BCRYPT_SALT_ROUNDS!: number;
-  @IsIn(['true', 'false'])
-  BULL_BOARD_ENABLED!: 'true' | 'false';
+
   @IsIn(['development', 'test', 'production'])
   NODE_ENV!: 'development' | 'test' | 'production';
+
   @IsUrl({
     require_tld: false,
     protocols: ['redis', 'rediss'],
   })
   REDIS_URL!: string;
-  @IsInt()
-  @Min(1)
-  @Max(60)
-  QUEUE_TASK_REMINDER_CONCURRENCY!: number;
 
   @IsInt()
   @Min(1)
   @Max(10_080)
   TASK_REMINDER_LEAD_MINUTES!: number;
+
   @IsString()
   @IsNotEmpty()
   AWS_REGION!: string;
@@ -67,10 +64,6 @@ class EnvironmentVariables {
   @Min(1_024)
   @Max(10_485_760)
   TASK_IMAGE_MAX_BYTES!: number;
-  @IsInt()
-  @Min(1)
-  @Max(20)
-  QUEUE_INVITATION_EMAIL_CONCURRENCY!: number;
 }
 
 export function validateEnvironment(

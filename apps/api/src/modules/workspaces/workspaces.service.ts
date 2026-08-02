@@ -6,6 +6,10 @@ import {
 } from '@nestjs/common';
 
 import type { WorkspaceRole } from '../../database/schema';
+import { CACHE_TTL_SECONDS } from '../../infrastructure/cache/cache.constants';
+import { CacheKeys } from '../../infrastructure/cache/cache.keys';
+import { CacheService } from '../../infrastructure/cache/cache.service';
+import { reviveDatesInObject } from '../../infrastructure/cache/cache.revive';
 import type { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import type { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { WorkspacesRepository } from './workspaces.repository';
@@ -19,6 +23,7 @@ import type {
 export class WorkspacesService {
   public constructor(
     private readonly workspacesRepository: WorkspacesRepository,
+    private readonly cacheService: CacheService,
   ) {}
 
   public async create(
@@ -43,6 +48,8 @@ export class WorkspacesService {
         description,
       });
 
+      await this.cacheService.del(CacheKeys.userWorkspaces(userId));
+
       return {
         ...result.workspace,
         role: result.membership.role,
@@ -59,30 +66,70 @@ export class WorkspacesService {
   }
 
   public async findAllForUser(userId: string): Promise<WorkspaceWithRole[]> {
+    const key = CacheKeys.userWorkspaces(userId);
+
+    const cached =
+      await this.cacheService.getJson<WorkspaceWithRole[]>(key);
+
+    if (cached) {
+      return cached.map((workspace) =>
+        reviveDatesInObject(workspace, ['createdAt', 'updatedAt']),
+      );
+    }
+
     const results = await this.workspacesRepository.findAllForUser(userId);
 
-    return results.map((result) => ({
+    const mapped = results.map((result) => ({
       ...result.workspace,
       role: result.role,
     }));
+
+    await this.cacheService.setJson(
+      key,
+      mapped,
+      CACHE_TTL_SECONDS.workspacesList,
+    );
+
+    return mapped;
   }
 
   public async getMembershipContext(
     workspaceId: string,
     userId: string,
   ): Promise<WorkspaceMembershipContext> {
+    const key = CacheKeys.membership(workspaceId, userId);
+
+    const cached =
+      await this.cacheService.getJson<WorkspaceMembershipContext>(key);
+
+    if (cached) {
+      return {
+        workspace: reviveDatesInObject(cached.workspace, [
+          'createdAt',
+          'updatedAt',
+        ]),
+        membership: reviveDatesInObject(cached.membership, [
+          'joinedAt',
+          'createdAt',
+          'updatedAt',
+        ]),
+      };
+    }
+
     const result = await this.workspacesRepository.findWorkspaceAndMembership(
       workspaceId,
       userId,
     );
 
-    /*
-     * We intentionally return 404 instead of revealing
-     * whether the workspace exists to non-members.
-     */
     if (!result) {
       throw new NotFoundException('Workspace was not found');
     }
+
+    await this.cacheService.setJson(
+      key,
+      result,
+      CACHE_TTL_SECONDS.membership,
+    );
 
     return result;
   }
@@ -159,6 +206,11 @@ export class WorkspacesService {
         throw new NotFoundException('Workspace was not found');
       }
 
+      await this.invalidateWorkspaceCaches(
+        context.workspace.id,
+        context.membership.userId,
+      );
+
       return {
         ...workspace,
         role: context.membership.role,
@@ -188,6 +240,34 @@ export class WorkspacesService {
     if (!deleted) {
       throw new NotFoundException('Workspace was not found');
     }
+
+    await this.invalidateWorkspaceCaches(
+      context.workspace.id,
+      context.membership.userId,
+    );
+  }
+
+  public async invalidateMembership(
+    workspaceId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.cacheService.del(
+      CacheKeys.membership(workspaceId, userId),
+      CacheKeys.userWorkspaces(userId),
+      CacheKeys.workspaceMembers(workspaceId),
+    );
+  }
+
+  private async invalidateWorkspaceCaches(
+    workspaceId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.cacheService.del(
+      CacheKeys.userWorkspaces(userId),
+      CacheKeys.membership(workspaceId, userId),
+      CacheKeys.workspaceProjects(workspaceId),
+      CacheKeys.workspaceMembers(workspaceId),
+    );
   }
 
   private assertAllowedRole(

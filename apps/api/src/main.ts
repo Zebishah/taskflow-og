@@ -4,13 +4,12 @@ import { NestFactory } from '@nestjs/core';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import dns from 'node:dns';
 
 import { AppModule } from './app.module';
-import { bullBoardLocalOnly } from './infrastructure/bull-board/bull-board-local.middleware';
-import { BullBoardService } from './infrastructure/bull-board/bull-board.service';
-// main.ts — before anything else runs
-import dns from 'node:dns';
+
 dns.setDefaultResultOrder('ipv4first');
+
 function normalizeApiPrefix(prefix: string): string {
   return prefix.replace(/^\/+|\/+$/g, '');
 }
@@ -28,41 +27,6 @@ async function bootstrap(): Promise<void> {
   );
 
   const frontendUrl = configService.getOrThrow<string>('FRONTEND_URL');
-
-  const nodeEnvironment = configService.getOrThrow<string>('NODE_ENV');
-
-  const bullBoardEnabled =
-    configService.getOrThrow<string>('BULL_BOARD_ENABLED') === 'true';
-
-  /*
-   * Mount Bull Board before the global Helmet middleware.
-   * Bull Board serves its own UI assets, which can otherwise
-   * be blocked by Helmet's default content-security policy.
-   *
-   * It is mounted only in development and is additionally
-   * protected by localhost-only middleware.
-   */
-  if (bullBoardEnabled && nodeEnvironment === 'development') {
-    const bullBoardService = application.get(BullBoardService);
-
-    const bullBoardPath = `/${apiPrefix}/admin/queues`;
-
-    bullBoardService.setBasePath(bullBoardPath);
-
-    application.use(
-      bullBoardPath,
-      bullBoardLocalOnly,
-      bullBoardService.getRouter(),
-    );
-
-    logger.log(
-      `Bull Board available at http://localhost:${port}${bullBoardPath}`,
-    );
-  } else if (bullBoardEnabled) {
-    logger.warn(
-      'Bull Board was not mounted because it is allowed only in development',
-    );
-  }
 
   application.use(helmet());
   application.use(compression());

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { CacheModule } from '../../infrastructure/cache/cache.module';
 import { AuthModule } from '../auth/auth.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { ProjectColumnsController } from './project-columns.controller';
@@ -10,7 +11,7 @@ import { ProjectsRepository } from './projects.repository';
 import { ProjectsService } from './projects.service';
 
 @Module({
-  imports: [AuthModule, WorkspacesModule],
+  imports: [AuthModule, WorkspacesModule, CacheModule],
 
   controllers: [ProjectsController, ProjectColumnsController],
 

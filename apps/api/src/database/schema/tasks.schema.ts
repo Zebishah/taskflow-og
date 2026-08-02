@@ -76,6 +76,20 @@ export const tasks = pgTable(
       mode: 'date',
     }),
 
+    /*
+     * When the assignee should receive a due reminder.
+     * Managed by TaskReminderScheduleService (cron replaces BullMQ).
+     */
+    reminderAt: timestamp('reminder_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
+
+    reminderSentAt: timestamp('reminder_sent_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
+
     completedAt: timestamp('completed_at', {
       withTimezone: true,
       mode: 'date',
@@ -146,6 +160,8 @@ export const tasks = pgTable(
     ),
 
     index('tasks_due_at_index').on(table.dueAt),
+
+    index('tasks_reminder_at_pending_index').on(table.reminderAt),
 
     index('tasks_created_by_user_id_index').on(table.createdByUserId),
   ],

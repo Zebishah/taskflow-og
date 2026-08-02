@@ -7,15 +7,16 @@ import type {
   WorkspaceInvitation,
   WorkspaceMember,
 } from '../../database/schema';
-import { InvitationEmailQueueService } from '../../infrastructure/queue/invitation-email-queue.service';
+import { MailService } from '../../infrastructure/mail/mail.service';
 import type { AccessTokenPayload } from '../auth/auth.types';
 import { WorkspaceMembersRepository } from '../workspace-members/workspace-members.repository';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 import type { WorkspaceMembershipContext } from '../workspaces/workspaces.types';
 import { WorkspaceInvitationsRepository } from './workspace-invitations.repository';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 import type { WorkspaceInvitationResponse } from './workspace-invitations.types';
 
-describe('WorkspaceInvitationsService queueing', () => {
+describe('WorkspaceInvitationsService email sending', () => {
   let service: WorkspaceInvitationsService;
 
   let findPendingByEmail: jest.MockedFunction<
@@ -42,7 +43,9 @@ describe('WorkspaceInvitationsService queueing', () => {
     WorkspaceMembersRepository['findResponseByUserId']
   >;
 
-  let enqueue: jest.MockedFunction<InvitationEmailQueueService['enqueue']>;
+  let sendWorkspaceInvitation: jest.MockedFunction<
+    MailService['sendWorkspaceInvitation']
+  >;
 
   const now = new Date('2026-07-24T10:00:00.000Z');
 
@@ -134,7 +137,7 @@ describe('WorkspaceInvitationsService queueing', () => {
     existsByEmail = jest.fn();
     findResponseByUserId = jest.fn();
 
-    enqueue = jest.fn();
+    sendWorkspaceInvitation = jest.fn();
 
     findPendingByEmail.mockResolvedValue(null);
     createInvitation.mockResolvedValue(databaseInvitation);
@@ -163,8 +166,7 @@ describe('WorkspaceInvitationsService queueing', () => {
       },
     });
 
-    // return a mock Job-like object to satisfy the enqueue return type
-    enqueue.mockResolvedValue(undefined);
+    sendWorkspaceInvitation.mockResolvedValue('email-id');
 
     const moduleReference = await Test.createTestingModule({
       providers: [
@@ -191,10 +193,18 @@ describe('WorkspaceInvitationsService queueing', () => {
         },
 
         {
-          provide: InvitationEmailQueueService,
+          provide: MailService,
 
           useValue: {
-            enqueue,
+            sendWorkspaceInvitation,
+          },
+        },
+
+        {
+          provide: WorkspacesService,
+
+          useValue: {
+            invalidateMembership: jest.fn().mockResolvedValue(undefined),
           },
         },
 
@@ -209,6 +219,13 @@ describe('WorkspaceInvitationsService queueing', () => {
 
               return undefined;
             }),
+            getOrThrow: jest.fn((key: string): string => {
+              if (key === 'FRONTEND_URL') {
+                return 'http://localhost:5173';
+              }
+
+              throw new Error(`Unexpected config key ${key}`);
+            }),
           },
         },
       ],
@@ -222,36 +239,30 @@ describe('WorkspaceInvitationsService queueing', () => {
     jest.clearAllMocks();
   });
 
-  it('queues an email after creating an invitation', async () => {
+  it('sends an email immediately after creating an invitation', async () => {
     const result = await service.create(context, inviter, {
       email: ' MEMBER@EXAMPLE.COM ',
       role: 'member',
     });
 
-    expect(enqueue).toHaveBeenCalledWith(
+    expect(sendWorkspaceInvitation).toHaveBeenCalledWith(
       expect.objectContaining({
-        invitationId: databaseInvitation.id,
-
-        workspaceId: workspace.id,
         recipientEmail: 'member@example.com',
-
         inviterName: 'Workspace Owner',
-
         workspaceName: 'TaskFlow',
-
         role: 'member',
-
-        rawToken: expect.any(String) as string,
-
-        expiresAt: '2026-07-31T10:00:00.000Z',
+        invitationUrl: expect.stringContaining(
+          'http://localhost:5173/invitations/',
+        ) as string,
+        expiresAt: new Date('2026-07-31T10:00:00.000Z'),
       }),
     );
 
     expect(result).toEqual(invitationResponse);
   });
 
-  it('removes the invitation when queueing fails', async () => {
-    enqueue.mockRejectedValue(new Error('Redis unavailable'));
+  it('removes the invitation when sending fails', async () => {
+    sendWorkspaceInvitation.mockRejectedValue(new Error('Resend unavailable'));
 
     await expect(
       service.create(context, inviter, {

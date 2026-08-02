@@ -12,7 +12,11 @@ import type {
   Task,
   WorkspaceRole,
 } from '../../database/schema';
-import { TaskReminderQueueService } from '../../infrastructure/queue/task-reminder-queue.service';
+import { CACHE_TTL_SECONDS } from '../../infrastructure/cache/cache.constants';
+import { CacheKeys } from '../../infrastructure/cache/cache.keys';
+import { CacheService } from '../../infrastructure/cache/cache.service';
+import { reviveDatesInObject } from '../../infrastructure/cache/cache.revive';
+import { TaskReminderScheduleService } from '../../infrastructure/reminders/task-reminder-schedule.service';
 import type { WorkspaceMembershipContext } from '../workspaces/workspaces.types';
 import type { CreateTaskDto } from './dto/create-task.dto';
 import type { ListTasksQueryDto } from './dto/list-tasks-query.dto';
@@ -27,8 +31,9 @@ export class TasksService {
 
   public constructor(
     private readonly tasksRepository: TasksRepository,
-    private readonly taskReminderQueueService: TaskReminderQueueService,
+    private readonly taskReminderScheduleService: TaskReminderScheduleService,
     private readonly taskImagesService: TaskImagesService,
+    private readonly cacheService: CacheService,
   ) {}
 
   public async create(
@@ -85,6 +90,8 @@ export class TasksService {
 
     await this.reconcileReminderSafely(null, task);
 
+    await this.invalidateTaskListCache(workspaceId, projectId);
+
     return task;
   }
 
@@ -97,20 +104,47 @@ export class TasksService {
 
     await this.findProjectOrFail(workspaceId, projectId);
 
-    /*
-     * Validate a column filter so a column belonging to
-     * another project cannot be supplied.
-     */
     if (query.columnId !== undefined) {
       await this.findColumnOrFail(projectId, query.columnId);
     }
 
-    return this.tasksRepository.findAll(workspaceId, projectId, {
+    const filters = {
       columnId: query.columnId,
       priority: query.priority,
       assigneeMemberId: query.assigneeMemberId,
       search: query.search,
-    });
+    };
+
+    const isUnfilteredBoard =
+      filters.columnId === undefined &&
+      filters.priority === undefined &&
+      filters.assigneeMemberId === undefined &&
+      filters.search === undefined;
+
+    if (isUnfilteredBoard) {
+      const cacheKey = CacheKeys.projectTasks(workspaceId, projectId);
+      const cached = await this.cacheService.getJson<Task[]>(cacheKey);
+
+      if (cached) {
+        return cached.map((task) => this.reviveTask(task));
+      }
+
+      const tasks = await this.tasksRepository.findAll(
+        workspaceId,
+        projectId,
+        filters,
+      );
+
+      await this.cacheService.setJson(
+        cacheKey,
+        tasks,
+        CACHE_TTL_SECONDS.tasksList,
+      );
+
+      return tasks;
+    }
+
+    return this.tasksRepository.findAll(workspaceId, projectId, filters);
   }
 
   public async findOne(
@@ -218,6 +252,8 @@ export class TasksService {
       await this.reconcileReminderSafely(existingTask, updatedTask);
     }
 
+    await this.invalidateTaskListCache(workspaceId, projectId);
+
     return updatedTask;
   }
 
@@ -253,6 +289,26 @@ export class TasksService {
     await this.reconcileReminderSafely(existingTask, null);
 
     await this.taskImagesService.deleteObjectSafely(existingTask.imageKey);
+
+    await this.invalidateTaskListCache(workspaceId, projectId);
+  }
+
+  private reviveTask(task: Task): Task {
+    return reviveDatesInObject(task, [
+      'dueAt',
+      'reminderAt',
+      'reminderSentAt',
+      'completedAt',
+      'createdAt',
+      'updatedAt',
+    ]);
+  }
+
+  private async invalidateTaskListCache(
+    workspaceId: string,
+    projectId: string,
+  ): Promise<void> {
+    await this.cacheService.del(CacheKeys.projectTasks(workspaceId, projectId));
   }
 
   private async findProjectOrFail(
@@ -383,7 +439,10 @@ export class TasksService {
     currentTask: Task | null,
   ): Promise<void> {
     try {
-      await this.taskReminderQueueService.reconcile(previousTask, currentTask);
+      await this.taskReminderScheduleService.reconcile(
+        previousTask,
+        currentTask,
+      );
     } catch (error: unknown) {
       const message =
         error instanceof Error ? (error.stack ?? error.message) : String(error);

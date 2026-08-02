@@ -1,11 +1,13 @@
 services:
   # ---------- BACKEND: NestJS API (Web Service) ----------
+  # No BullMQ worker — invites send immediately; reminders run via Nest cron in this process.
+  # Health check is Postgres-only (does not ping Upstash).
   - type: web
     name: taskflow-api
     runtime: node
-    plan: starter # change to "free" while testing, upgrade later
-    region: oregon # pick closest to your users
-    rootDir: . # build runs from repo root because of npm workspaces
+    plan: free
+    region: oregon
+    rootDir: .
     buildCommand: npm install && npm run build:api
     startCommand: npm run start:prod --workspace=@taskflow/api
     healthCheckPath: /api/v1/health
@@ -15,31 +17,48 @@ services:
         value: production
       - key: PORT
         value: 3000
-      - key: DATABASE_URL
-        sync: false # set manually in dashboard (from your Postgres)
-      - key: REDIS_URL
-        sync: false
-      - key: JWT_SECRET
-        generateValue: true # Render auto-generates a secure random value
+      - key: API_PREFIX
+        value: api/v1
       - key: FRONTEND_URL
-        value: https://taskflow-web.onrender.com # update after frontend deploys
+        value: https://taskflow-web.onrender.com
 
-  # ---------- BACKEND WORKER (BullMQ processor, optional separate service) ----------
-  - type: worker
-    name: taskflow-worker
-    runtime: node
-    plan: starter
-    region: oregon
-    rootDir: .
-    buildCommand: npm install && npm run build:api
-    startCommand: npm run start:worker:prod --workspace=@taskflow/api
-    autoDeploy: true
-    envVars:
-      - key: NODE_ENV
-        value: production
       - key: DATABASE_URL
         sync: false
+
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_TTL_SECONDS
+        value: "900"
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: "7"
+      - key: BCRYPT_SALT_ROUNDS
+        value: "12"
+
+      # Upstash Redis TCP — caching only (single REDIS_URL)
       - key: REDIS_URL
+        sync: false
+
+      - key: TASK_REMINDER_LEAD_MINUTES
+        value: "60"
+      - key: WORKSPACE_INVITATION_TTL_HOURS
+        value: "168"
+
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+
+      - key: AWS_REGION
+        sync: false
+      - key: S3_TASK_IMAGES_BUCKET
+        sync: false
+      - key: S3_PRESIGNED_URL_TTL_SECONDS
+        value: "900"
+      - key: TASK_IMAGE_MAX_BYTES
+        value: "5242880"
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
         sync: false
 
   # ---------- FRONTEND: React + Vite (Static Site) ----------
@@ -55,18 +74,9 @@ services:
         name: Cache-Control
         value: public, max-age=0, must-revalidate
     routes:
-      # SPA fallback so React Router deep links (e.g. /dashboard) don't 404 on refresh
       - type: rewrite
         source: /*
         destination: /index.html
     envVars:
       - key: VITE_API_URL
         value: https://taskflow-api.onrender.com/api/v1
-
-# ---------- DATABASE (managed Postgres) ----------
-databases:
-  - name: taskflow-db
-    plan: starter
-    region: oregon
-    databaseName: taskflow
-    user: taskflow

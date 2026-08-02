@@ -1,3 +1,9 @@
+/*
+ * ============================================================================
+ * DISABLED — Bull Board is preserved for later restore only.
+ * Do NOT import BullBoardModule into AppModule.
+ * ============================================================================
+ */
 import { Module } from '@nestjs/common';
 
 import { QueueModule } from '../queue/queue.module';
