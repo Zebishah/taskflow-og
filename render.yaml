@@ -1,0 +1,72 @@
+services:
+  # ---------- BACKEND: NestJS API (Web Service) ----------
+  - type: web
+    name: taskflow-api
+    runtime: node
+    plan: starter # change to "free" while testing, upgrade later
+    region: oregon # pick closest to your users
+    rootDir: . # build runs from repo root because of npm workspaces
+    buildCommand: npm install && npm run build:api
+    startCommand: npm run start:prod --workspace=@taskflow/api
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        sync: false # set manually in dashboard (from your Postgres)
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true # Render auto-generates a secure random value
+      - key: FRONTEND_URL
+        value: https://taskflow-web.onrender.com # update after frontend deploys
+
+  # ---------- BACKEND WORKER (BullMQ processor, optional separate service) ----------
+  - type: worker
+    name: taskflow-worker
+    runtime: node
+    plan: starter
+    region: oregon
+    rootDir: .
+    buildCommand: npm install && npm run build:api
+    startCommand: npm run start:worker:prod --workspace=@taskflow/api
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+  # ---------- FRONTEND: React + Vite (Static Site) ----------
+  - type: web
+    name: taskflow-web
+    runtime: static
+    rootDir: .
+    buildCommand: npm install && npm run build:web
+    staticPublishPath: apps/web/dist
+    autoDeploy: true
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+    routes:
+      # SPA fallback so React Router deep links (e.g. /dashboard) don't 404 on refresh
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://taskflow-api.onrender.com/api/v1
+
+# ---------- DATABASE (managed Postgres) ----------
+databases:
+  - name: taskflow-db
+    plan: starter
+    region: oregon
+    databaseName: taskflow
+    user: taskflow
