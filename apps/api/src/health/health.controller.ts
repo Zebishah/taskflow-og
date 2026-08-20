@@ -19,6 +19,12 @@ interface HealthResponse {
   timestamp: string;
 }
 
+interface LiveResponse {
+  status: 'ok';
+  service: 'taskflow-api';
+  timestamp: string;
+}
+
 @Controller('health')
 export class HealthController {
   private readonly logger = new Logger(HealthController.name);
@@ -27,6 +33,22 @@ export class HealthController {
     @Inject(DATABASE)
     private readonly database: Database,
   ) {}
+
+  /*
+   * Lightweight keep-alive for cron (e.g. cron-job.org).
+   * Does not touch Postgres/Redis — cheap and fast so Render free
+   * tier does not sleep from idle.
+   *
+   * Cron URL: https://YOUR-API.onrender.com/api/v1/health/live
+   */
+  @Get('live')
+  public live(): LiveResponse {
+    return {
+      status: 'ok',
+      service: 'taskflow-api',
+      timestamp: new Date().toISOString(),
+    };
+  }
 
   @Get()
   public async check(): Promise<HealthResponse> {
