@@ -114,6 +114,7 @@ export function LandingPage(): React.JSX.Element {
 
       <main id="top">
         <section className="landing-hero" aria-labelledby="landing-brand">
+          <div className="landing-hero__grid" aria-hidden="true" />
           <div className="landing-hero__glow" aria-hidden="true" />
           <div
             className="landing-hero__glow landing-hero__glow--right"
@@ -126,7 +127,8 @@ export function LandingPage(): React.JSX.Element {
             </h1>
             <div className="landing-hero__rule" aria-hidden="true" />
             <p className="landing-hero__headline landing-fade-delay">
-              Work that moves with the team — without losing the plot.
+              Work that moves with the team —{" "}
+              <span>without losing the plot.</span>
             </p>
             <p className="landing-hero__support landing-fade-delay-2">
               Multi-tenant workspaces, roles, invites, and Kanban boards.
