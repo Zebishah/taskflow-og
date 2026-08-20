@@ -120,22 +120,161 @@ export function LandingPage(): React.JSX.Element {
             className="landing-hero__glow landing-hero__glow--right"
             aria-hidden="true"
           />
+          <div className="landing-hero__orb landing-hero__orb--a" aria-hidden="true" />
+          <div className="landing-hero__orb landing-hero__orb--b" aria-hidden="true" />
 
-          <div className="landing-hero__inner">
-            <h1 id="landing-brand" className="landing-hero__brand landing-fade">
-              Task<em>Flow</em>
-            </h1>
-            <div className="landing-hero__rule" aria-hidden="true" />
-            <p className="landing-hero__headline landing-fade-delay">
-              Work that moves with the team —{" "}
-              <span>without losing the plot.</span>
-            </p>
-            <p className="landing-hero__support landing-fade-delay-2">
-              Multi-tenant workspaces, roles, invites, and Kanban boards.
-              Built as a serious product, not a throwaway todo demo.
-            </p>
-            <div className="landing-hero__ctas landing-fade-delay-2">
-              {isInitializing ? null : <CtaPair isAuthenticated={showAuthed} />}
+          <div className="landing-hero__stage">
+            <div className="landing-hero__copy">
+              <div className="landing-hero__pill landing-fade">
+                <span className="landing-hero__pill-dot" />
+                Organize · Collaborate · Deliver
+              </div>
+
+              <h1 id="landing-brand" className="landing-hero__brand landing-fade">
+                Task<em>Flow</em>
+              </h1>
+              <div className="landing-hero__rule" aria-hidden="true" />
+              <p className="landing-hero__headline landing-fade-delay">
+                Work that moves with the team —{" "}
+                <span>without losing the plot.</span>
+              </p>
+              <p className="landing-hero__support landing-fade-delay-2">
+                Multi-tenant workspaces, roles, invites, and Kanban boards.
+                Built as a serious product, not a throwaway todo demo.
+              </p>
+              <div className="landing-hero__ctas landing-fade-delay-2">
+                {isInitializing ? null : (
+                  <CtaPair isAuthenticated={showAuthed} />
+                )}
+              </div>
+              <ul className="landing-hero__chips landing-fade-delay-2">
+                <li>
+                  <svg aria-hidden="true" viewBox="0 0 16 16">
+                    <path d="m3 8 3 3 7-7" />
+                  </svg>
+                  Live workspaces
+                </li>
+                <li>
+                  <svg aria-hidden="true" viewBox="0 0 16 16">
+                    <path d="m3 8 3 3 7-7" />
+                  </svg>
+                  Role-based access
+                </li>
+                <li>
+                  <svg aria-hidden="true" viewBox="0 0 16 16">
+                    <path d="m3 8 3 3 7-7" />
+                  </svg>
+                  Board-first shipping
+                </li>
+              </ul>
+            </div>
+
+            <div
+              className="landing-hero__visual landing-fade-delay"
+              aria-hidden="true"
+            >
+              <div className="landing-board">
+                <div className="landing-board__chrome">
+                  <div className="landing-board__dots">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <p>Product Launch · Board</p>
+                  <span className="landing-board__live">Live</span>
+                </div>
+
+                <div className="landing-board__columns">
+                  <div className="landing-board__col">
+                    <header>
+                      <span>Backlog</span>
+                      <em>4</em>
+                    </header>
+                    <article className="landing-board__card">
+                      <span className="landing-board__tag landing-board__tag--violet">
+                        Design
+                      </span>
+                      <p>Polish invite email template</p>
+                      <footer>
+                        <span className="landing-board__avatar">ZH</span>
+                        <time>Today</time>
+                      </footer>
+                    </article>
+                    <article className="landing-board__card landing-board__card--dim">
+                      <span className="landing-board__tag landing-board__tag--teal">
+                        API
+                      </span>
+                      <p>Workspace role checks</p>
+                    </article>
+                  </div>
+
+                  <div className="landing-board__col">
+                    <header>
+                      <span>In progress</span>
+                      <em>2</em>
+                    </header>
+                    <article className="landing-board__card landing-board__card--lift">
+                      <span className="landing-board__tag landing-board__tag--teal">
+                        Board
+                      </span>
+                      <p>Drag tasks across columns</p>
+                      <footer>
+                        <span className="landing-board__avatar landing-board__avatar--teal">
+                          AM
+                        </span>
+                        <time>2h left</time>
+                      </footer>
+                    </article>
+                    <article className="landing-board__card">
+                      <span className="landing-board__tag landing-board__tag--violet">
+                        Auth
+                      </span>
+                      <p>Session restore on refresh</p>
+                    </article>
+                  </div>
+
+                  <div className="landing-board__col">
+                    <header>
+                      <span>Done</span>
+                      <em>3</em>
+                    </header>
+                    <article className="landing-board__card landing-board__card--done">
+                      <span className="landing-board__tag landing-board__tag--teal">
+                        Ship
+                      </span>
+                      <p>Deploy API + web to Render</p>
+                      <footer>
+                        <span className="landing-board__check">✓</span>
+                        <time>Shipped</time>
+                      </footer>
+                    </article>
+                    <article className="landing-board__card landing-board__card--dim">
+                      <span className="landing-board__tag landing-board__tag--violet">
+                        Docs
+                      </span>
+                      <p>Landing page copy pass</p>
+                    </article>
+                  </div>
+                </div>
+              </div>
+
+              <div className="landing-float landing-float--members">
+                <div className="landing-float__avatars">
+                  <span>ZH</span>
+                  <span>SK</span>
+                  <span>MR</span>
+                </div>
+                <p>
+                  <strong>3 teammates</strong>
+                  <br />
+                  active in this workspace
+                </p>
+              </div>
+
+              <div className="landing-float landing-float--pulse">
+                <span className="landing-float__pulse-dot" />
+                Reminder set · 09:00
+              </div>
             </div>
           </div>
         </section>
