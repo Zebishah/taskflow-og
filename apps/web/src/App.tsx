@@ -4,6 +4,7 @@ import { ProtectedRoute } from "./features/auth/components/protected-route";
 import { DashboardPage } from "./features/auth/pages/dashboard-page";
 import { LoginPage } from "./features/auth/pages/login-page";
 import { RegisterPage } from "./features/auth/pages/register-page";
+import { LandingPage } from "./features/landing/landing-page";
 import { ProjectOverviewPage } from "./features/projects/pages/project-overview-page";
 import { ProjectsPage } from "./features/projects/pages/projects-page";
 import { InvitationPage } from "./features/workspace-collaboration/pages/invitation-page";
@@ -18,7 +19,7 @@ import { WorkspacesPage } from "./features/workspaces/pages/workspaces-page";
 function App(): React.JSX.Element {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<LandingPage />} />
 
       <Route path="/login" element={<LoginPage />} />
 
@@ -66,7 +67,7 @@ function App(): React.JSX.Element {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
