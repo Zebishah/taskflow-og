@@ -1,7 +1,7 @@
 services:
   # ---------- BACKEND: NestJS API (Web Service) ----------
   # No BullMQ worker — invites send immediately; reminders run via Nest cron in this process.
-  # Health check is Postgres-only (does not ping Upstash).
+  # Liveness only — does not ping Postgres/Upstash (saves Neon CU-hours).
   - type: web
     name: taskflow-api
     runtime: node
@@ -12,7 +12,7 @@ services:
     # Install with --include=dev so the build can compile, then start uses dist/.
     buildCommand: npm install --include=dev && npm run build:api
     startCommand: npm run start:prod --workspace=@taskflow/api
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /api/v1/health/live
     autoDeploy: true
     envVars:
       - key: NODE_ENV

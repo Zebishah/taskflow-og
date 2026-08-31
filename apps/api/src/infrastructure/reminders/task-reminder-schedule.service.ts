@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import type { Task } from '../../database/schema';
+import { TaskReminderPendingTracker } from './task-reminder-pending.tracker';
 import { TaskReminderRepository } from './task-reminder.repository';
 
 /**
@@ -15,6 +16,7 @@ export class TaskReminderScheduleService {
   public constructor(
     private readonly repository: TaskReminderRepository,
     private readonly configService: ConfigService,
+    private readonly pendingTracker: TaskReminderPendingTracker,
   ) {}
 
   public async reconcile(
@@ -32,7 +34,10 @@ export class TaskReminderScheduleService {
 
   public async schedule(task: Task): Promise<void> {
     if (!this.isSchedulable(task)) {
-      await this.repository.clearReminder(task.id);
+      if (this.hasPendingReminder(task)) {
+        await this.repository.clearReminder(task.id);
+        this.pendingTracker.onReminderCleared();
+      }
 
       this.logger.log(
         JSON.stringify({
@@ -47,7 +52,10 @@ export class TaskReminderScheduleService {
     const dueAt = task.dueAt;
 
     if (!dueAt || !task.assigneeMemberId) {
-      await this.repository.clearReminder(task.id);
+      if (this.hasPendingReminder(task)) {
+        await this.repository.clearReminder(task.id);
+        this.pendingTracker.onReminderCleared();
+      }
 
       return;
     }
@@ -67,6 +75,12 @@ export class TaskReminderScheduleService {
 
     await this.repository.updateReminderSchedule(task.id, reminderAt, true);
 
+    if (this.hasPendingReminder(task)) {
+      this.pendingTracker.onReminderRescheduled(reminderAt);
+    } else {
+      this.pendingTracker.onReminderScheduled(reminderAt);
+    }
+
     this.logger.log(
       JSON.stringify({
         event: 'task-reminder.scheduled',
@@ -78,7 +92,10 @@ export class TaskReminderScheduleService {
   }
 
   public async cancel(task: Task): Promise<void> {
-    await this.repository.clearReminder(task.id);
+    if (this.hasPendingReminder(task)) {
+      await this.repository.clearReminder(task.id);
+      this.pendingTracker.onReminderCleared();
+    }
 
     this.logger.log(
       JSON.stringify({
@@ -86,6 +103,10 @@ export class TaskReminderScheduleService {
         taskId: task.id,
       }),
     );
+  }
+
+  private hasPendingReminder(task: Task): boolean {
+    return task.reminderAt !== null && task.reminderSentAt === null;
   }
 
   private isSchedulable(task: Task): boolean {

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gt, isNotNull, isNull, lte } from 'drizzle-orm';
+import { and, asc, eq, gt, isNotNull, isNull, lte, min, sql } from 'drizzle-orm';
 
 import { DATABASE } from '../../database/database.constants';
 import type { Database } from '../../database/database.types';
@@ -64,6 +64,33 @@ export class TaskReminderRepository {
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, taskId));
+  }
+
+  public async countPendingReminders(): Promise<{
+    count: number;
+    earliestDueAt: Date | null;
+  }> {
+    const pendingFilter = and(
+      isNotNull(tasks.reminderAt),
+      isNull(tasks.reminderSentAt),
+      isNotNull(tasks.dueAt),
+      gt(tasks.dueAt, sql`now()`),
+      isNull(tasks.completedAt),
+      isNotNull(tasks.assigneeMemberId),
+    );
+
+    const [aggregate] = await this.database
+      .select({
+        count: sql<number>`count(*)::int`,
+        earliestDueAt: min(tasks.reminderAt),
+      })
+      .from(tasks)
+      .where(pendingFilter);
+
+    return {
+      count: aggregate?.count ?? 0,
+      earliestDueAt: aggregate?.earliestDueAt ?? null,
+    };
   }
 
   /**

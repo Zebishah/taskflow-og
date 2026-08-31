@@ -4,6 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 
 import type { Task } from '../../database/schema';
 import { MailService } from '../mail/mail.service';
+import { TaskReminderPendingTracker } from './task-reminder-pending.tracker';
 import { TaskReminderRepository } from './task-reminder.repository';
 
 @Injectable()
@@ -16,10 +17,15 @@ export class TaskReminderDispatchService {
     private readonly repository: TaskReminderRepository,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
+    private readonly pendingTracker: TaskReminderPendingTracker,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   public async processDueReminders(): Promise<void> {
+    if (!this.pendingTracker.shouldDispatch()) {
+      return;
+    }
+
     if (this.isRunning) {
       return;
     }
@@ -28,6 +34,14 @@ export class TaskReminderDispatchService {
 
     try {
       const claimed = await this.repository.claimDueReminders(50);
+
+      if (claimed.length === 0) {
+        await this.pendingTracker.syncFromDatabase();
+
+        return;
+      }
+
+      this.pendingTracker.onRemindersClaimed(claimed.length);
 
       for (const task of claimed) {
         await this.dispatch(task);
@@ -139,6 +153,7 @@ export class TaskReminderDispatchService {
       );
     } catch (error: unknown) {
       await this.repository.releaseClaim(task.id);
+      this.pendingTracker.onReminderClaimReleased();
 
       const message =
         error instanceof Error ? (error.stack ?? error.message) : String(error);
